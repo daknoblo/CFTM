@@ -10,6 +10,7 @@ import (
 
 	"github.com/daknoblo/CFTM/internal/cloudflare"
 	"github.com/daknoblo/CFTM/internal/collector"
+	"github.com/daknoblo/CFTM/internal/notify"
 	"github.com/daknoblo/CFTM/internal/prober"
 	"github.com/daknoblo/CFTM/internal/store"
 )
@@ -32,6 +33,14 @@ func Seed(ctx context.Context, st *store.Store, log *slog.Logger) (*collector.Co
 		ConfigRefreshEvery: 10,
 		RetentionDays:      90,
 	}, log)
+
+	// Attached before anything is polled, so the outbox fills through the same
+	// path a real deployment would use.
+	coll.WithEventSink(notify.New(st, nil, notify.Config{
+		Enabled:     true,
+		MinSeverity: collector.SeverityWarning,
+		Cooldown:    time.Hour,
+	}, log))
 
 	if err := backfillHistory(ctx, st, now); err != nil {
 		api.Close()
