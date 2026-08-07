@@ -160,11 +160,66 @@ func (s *Server) buildCard(ctx context.Context, snap snapshot, t store.Tunnel) w
 		Colos:        colosOf(snap.connections[t.ID]),
 		Versions:     versionsOf(snap.connectors[t.ID]),
 		IngressCount: countHostnames(snap.ingress[t.ID]),
+		Probes:       probeSummary(snap, snap.ingress[t.ID]),
 		Findings:     toWebFindings(visible),
 		Uptime24h:    toWebUptime("24 hours", 24*time.Hour, uptime),
 		Heartbeats:   s.heartbeats(ctx, t.ID, snap.now),
 		LastSeen:     t.LastSeen,
 	}
+}
+
+// probeSummary counts the latest probe outcome across a tunnel's probeable
+// hostnames. Ones that were never checked count towards Total but not Checked,
+// so a partly probed tunnel cannot look like a failing one.
+func probeSummary(snap snapshot, rules []store.IngressRule) web.Probes {
+	seen := map[string]bool{}
+	var out web.Probes
+	for _, r := range rules {
+		if r.Hostname == "" || !isHTTPService(r.Service) || seen[r.Hostname] {
+			continue
+		}
+		seen[r.Hostname] = true
+		out.Total++
+
+		probe, ok := snap.probes[r.Hostname]
+		if !ok {
+			continue
+		}
+		out.Checked++
+		if probe.Class == prober.ClassOK {
+			out.OK++
+			continue
+		}
+		out.Worst = worseProbeClass(out.Worst, probe.Class)
+	}
+	return out
+}
+
+// probeClassRank orders probe classes so the most serious one wins.
+func probeClassRank(class string) int {
+	switch class {
+	case prober.ClassTunnelDown:
+		return 6
+	case prober.ClassOriginError:
+		return 5
+	case prober.ClassTimeout, prober.ClassDNSError, prober.ClassTLSError:
+		return 4
+	case prober.ClassHTTPError:
+		return 3
+	case prober.ClassAccessDenied:
+		return 2
+	case prober.ClassAccessChallenge:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func worseProbeClass(a, b string) string {
+	if probeClassRank(b) > probeClassRank(a) {
+		return b
+	}
+	return a
 }
 
 // visibleFindings drops the findings the operator muted.

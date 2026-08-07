@@ -24,6 +24,22 @@ func probeLabel(p Probe) string {
 	return p.Class
 }
 
+// cardStatColumns widens the stat row when the probe summary is shown.
+func cardStatColumns(c TunnelCard) string {
+	if c.Probes.Checked > 0 {
+		return "sm:grid-cols-5"
+	}
+	return "sm:grid-cols-4"
+}
+
+// probeSummaryTone turns the counter red as soon as one hostname is not ok.
+func probeSummaryTone(p Probes) string {
+	if p.OK < p.Checked {
+		return "text-rose-300"
+	}
+	return "text-emerald-300"
+}
+
 // accessLabel renders the Access protection state of a hostname.
 func accessLabel(a AccessState) string {
 	switch {

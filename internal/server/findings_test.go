@@ -6,6 +6,10 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/daknoblo/CFTM/internal/store"
+	"github.com/daknoblo/CFTM/internal/web"
 )
 
 func postForm(t *testing.T, h http.Handler, path string, form url.Values) *httptest.ResponseRecorder {
@@ -140,5 +144,37 @@ func TestAuditPageFlagsAnUnknownProbeToken(t *testing.T) {
 		if token.InUse {
 			t.Errorf("token %q is marked InUse but does not match the configured client ID", token.ClientID)
 		}
+	}
+}
+
+func TestDashboardSummarizesProbeResults(t *testing.T) {
+	srv, _ := newTestServer(t)
+	ctx := t.Context()
+
+	// t1 serves two HTTP hostnames plus an SSH one and the catch-all, which are
+	// not probeable and must stay out of the total.
+	err := srv.store.AddProbeResults(ctx, []store.ProbeResult{
+		{Hostname: "app.example.com", CheckedAt: time.Now(), Class: "ok", StatusCode: 200},
+		{Hostname: "public-app.example.com", CheckedAt: time.Now(), Class: "origin_error", StatusCode: 502},
+	})
+	if err != nil {
+		t.Fatalf("AddProbeResults() error = %v", err)
+	}
+
+	d, err := srv.Dashboard(ctx)
+	if err != nil {
+		t.Fatalf("Dashboard() error = %v", err)
+	}
+	if len(d.Tunnels) == 0 {
+		t.Fatal("Dashboard() returned no tunnels")
+	}
+
+	got := d.Tunnels[0].Probes
+	want := web.Probes{Total: 2, Checked: 2, OK: 1, Worst: "origin_error"}
+	if got != want {
+		t.Errorf("Probes = %+v, want %+v", got, want)
+	}
+	if label := web.ProbeSummaryLabel(got); label != "1 / 2 ok" {
+		t.Errorf("ProbeSummaryLabel() = %q, want \"1 / 2 ok\"", label)
 	}
 }

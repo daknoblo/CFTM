@@ -98,6 +98,15 @@ type Probe struct {
 	CheckedAt  time.Time `json:"checkedAt,omitzero"`
 }
 
+// Probes summarizes the latest probe outcome across a tunnel's hostnames.
+type Probes struct {
+	// Total counts the probeable hostnames, Checked the ones with a result.
+	Total   int    `json:"total"`
+	Checked int    `json:"checked"`
+	OK      int    `json:"ok"`
+	Worst   string `json:"worst,omitempty"`
+}
+
 // TunnelCard is the dashboard summary of one tunnel.
 type TunnelCard struct {
 	ID           string      `json:"id"`
@@ -109,6 +118,7 @@ type TunnelCard struct {
 	Colos        []string    `json:"colos"`
 	Versions     []string    `json:"versions"`
 	IngressCount int         `json:"ingressCount"`
+	Probes       Probes      `json:"probes"`
 	Findings     []Finding   `json:"findings"`
 	Uptime24h    Uptime      `json:"uptime24h"`
 	Heartbeats   []Heartbeat `json:"-"`
@@ -347,6 +357,18 @@ func HostnameHref(host string) string {
 		return ""
 	}
 	return "https://" + host
+}
+
+// ProbeSummaryLabel renders the probe counter, calling out hostnames that are
+// probeable but have no result yet.
+func ProbeSummaryLabel(p Probes) string {
+	if p.Checked == 0 {
+		return "not checked yet"
+	}
+	if p.Checked < p.Total {
+		return fmt.Sprintf("%d / %d ok, %d pending", p.OK, p.Checked, p.Total-p.Checked)
+	}
+	return fmt.Sprintf("%d / %d ok", p.OK, p.Total)
 }
 
 // FormatPercent renders an availability figure, or a dash when unobserved.
