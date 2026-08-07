@@ -83,6 +83,26 @@ The GitHub endpoint is unauthenticated and allows 60 requests per hour per IP,
 so the default interval is far below the limit. The result is cached in the
 database.
 
+## Notifications
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `CFTM_NOTIFY_ENABLED` | `false` | Evaluate events and record them in the outbox |
+| `CFTM_NOTIFY_MIN_SEVERITY` | `warning` | `info`, `warning` or `critical` |
+| `CFTM_NOTIFY_COOLDOWN` | `1h` | How long the same condition stays quiet after being reported |
+
+**No delivery channel is wired up yet.** With `CFTM_NOTIFY_ENABLED=true` the
+dispatcher decides what would be sent, suppresses repeats and writes every
+decision to the outbox on the **Notifications** page. That makes the stream
+reviewable before committing to a transport — turn it on for a week and see
+whether the volume and the choice of events are right.
+
+Config changes, connectors coming up and new tunnels never notify: they are
+normal operations and would train you to ignore the channel. Deduplication is
+keyed on the condition, not the event, so a flapping tunnel reports once per
+cooldown. A recovery has a different target state and therefore always gets
+through immediately.
+
 ## Origin probing
 
 | Variable | Default | Description |

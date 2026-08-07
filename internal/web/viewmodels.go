@@ -259,6 +259,26 @@ type FeatureState struct {
 	Detail string
 }
 
+// NotificationsPageView is the model of the notification outbox page.
+type NotificationsPageView struct {
+	Enabled     bool
+	Transport   string
+	MinSeverity string
+	Cooldown    string
+	Items       []NotificationItem
+}
+
+// NotificationItem is one recorded notification.
+type NotificationItem struct {
+	CreatedAt time.Time
+	Severity  string
+	Title     string
+	Body      string
+	Transport string
+	Status    string
+	Error     string
+}
+
 // LogPage renders the in-memory log buffer.
 type LogPage struct {
 	Lines []LogLine

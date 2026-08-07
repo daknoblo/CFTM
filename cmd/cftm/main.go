@@ -21,6 +21,7 @@ import (
 	"github.com/daknoblo/CFTM/internal/collector"
 	"github.com/daknoblo/CFTM/internal/config"
 	"github.com/daknoblo/CFTM/internal/logbuf"
+	"github.com/daknoblo/CFTM/internal/notify"
 	"github.com/daknoblo/CFTM/internal/prober"
 	"github.com/daknoblo/CFTM/internal/release"
 	"github.com/daknoblo/CFTM/internal/server"
@@ -73,6 +74,16 @@ func run() error {
 		RetentionDays:      cfg.RetentionDays,
 	}, logger)
 
+	// No transport is wired up yet: notifications are evaluated, deduplicated
+	// and recorded in the outbox so the stream can be reviewed before a delivery
+	// channel is chosen.
+	dispatcher := notify.New(st, nil, notify.Config{
+		Enabled:     cfg.NotifyEnabled,
+		MinSeverity: collector.Severity(cfg.NotifyMinSeverity),
+		Cooldown:    cfg.NotifyCooldown,
+	}, logger)
+	coll.WithEventSink(dispatcher)
+
 	var activeProber collector.Prober
 	if cfg.ProbeEnabled {
 		activeProber = prober.New(prober.Config{
@@ -84,15 +95,19 @@ func run() error {
 	}
 
 	srv, err := server.New(st, coll, activeProber, logBuf, server.Config{
-		AccountID:      cfg.AccountID,
-		PollInterval:   cfg.PollInterval,
-		RetentionDays:  cfg.RetentionDays,
-		ProbeEnabled:   cfg.ProbeEnabled,
-		ProbeToken:     cfg.HasAccessServiceToken(),
-		ProbeClientID:  cfg.AccessClientID,
-		AuditEnabled:   cfg.AccessAuditEnabled,
-		ReleaseCheck:   cfg.ReleaseCheckEnabled,
-		ExpectedPublic: toSet(cfg.ExpectedPublic),
+		AccountID:       cfg.AccountID,
+		PollInterval:    cfg.PollInterval,
+		RetentionDays:   cfg.RetentionDays,
+		ProbeEnabled:    cfg.ProbeEnabled,
+		ProbeToken:      cfg.HasAccessServiceToken(),
+		ProbeClientID:   cfg.AccessClientID,
+		AuditEnabled:    cfg.AccessAuditEnabled,
+		ReleaseCheck:    cfg.ReleaseCheckEnabled,
+		NotifyEnabled:   cfg.NotifyEnabled,
+		NotifyTransport: dispatcher.Transport(),
+		NotifySeverity:  cfg.NotifyMinSeverity,
+		NotifyCooldown:  cfg.NotifyCooldown,
+		ExpectedPublic:  toSet(cfg.ExpectedPublic),
 	}, logger)
 	if err != nil {
 		return err

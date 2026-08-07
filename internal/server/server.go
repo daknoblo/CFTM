@@ -34,6 +34,11 @@ type Config struct {
 	AuditEnabled  bool
 	ReleaseCheck  bool
 
+	NotifyEnabled   bool
+	NotifyTransport string
+	NotifySeverity  string
+	NotifyCooldown  time.Duration
+
 	// ExpectedPublic names hostnames that are published without Access on
 	// purpose, keyed lowercase.
 	ExpectedPublic map[string]bool
@@ -91,6 +96,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ingress", s.handleIngress)
 	mux.HandleFunc("GET /audit", s.handleAudit)
 	mux.HandleFunc("GET /events", s.handleEvents)
+	mux.HandleFunc("GET /notifications", s.handleNotifications)
 	mux.HandleFunc("GET /logs", s.handleLogs)
 	mux.HandleFunc("GET /about", s.handleAbout)
 

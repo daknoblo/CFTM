@@ -52,6 +52,10 @@ type Config struct {
 	// ExpectedPublic lists hostnames that are published without an Access
 	// application on purpose.
 	ExpectedPublic []string
+
+	NotifyEnabled     bool
+	NotifyMinSeverity string
+	NotifyCooldown    time.Duration
 }
 
 // Load reads the configuration from the environment and validates it.
@@ -73,6 +77,8 @@ func Load() (Config, error) {
 		AccessClientSecret: strings.TrimSpace(os.Getenv("CFTM_ACCESS_CLIENT_SECRET")),
 
 		ExpectedPublic: envList("CFTM_EXPECTED_PUBLIC"),
+
+		NotifyMinSeverity: strings.ToLower(envString("CFTM_NOTIFY_MIN_SEVERITY", "warning")),
 	}
 
 	var err error
@@ -112,6 +118,17 @@ func Load() (Config, error) {
 	}
 	if c.ProbeEnabled, err = envBool("CFTM_PROBE_ENABLED", false); err != nil {
 		fail("%w", err)
+	}
+	if c.NotifyEnabled, err = envBool("CFTM_NOTIFY_ENABLED", false); err != nil {
+		fail("%w", err)
+	}
+	if c.NotifyCooldown, err = envDuration("CFTM_NOTIFY_COOLDOWN", time.Hour); err != nil {
+		fail("%w", err)
+	}
+	switch c.NotifyMinSeverity {
+	case "info", "warning", "critical":
+	default:
+		fail("CFTM_NOTIFY_MIN_SEVERITY must be info, warning or critical, got %q", c.NotifyMinSeverity)
 	}
 
 	if c.AccountID == "" {

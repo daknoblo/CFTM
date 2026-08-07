@@ -100,6 +100,15 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, web.LogsPage(s.layout(r, "Logs"), s.logPage()))
 }
 
+func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
+	page, err := s.NotificationsPage(r.Context())
+	if err != nil {
+		s.serverError(w, r, "building the notification outbox", err)
+		return
+	}
+	s.render(w, r, web.NotificationsPage(s.layout(r, "Notifications"), page))
+}
+
 func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
 	info := version.Get()
 	builtAt, _ := time.Parse(time.RFC3339, info.Date)
@@ -144,12 +153,23 @@ func (s *Server) features() []web.FeatureState {
 		public.Detail = fmt.Sprintf("%d hostname(s) exempt from the coverage check", n)
 	}
 
+	notifications := web.FeatureState{Name: "Notifications", State: "off", Detail: "CFTM_NOTIFY_ENABLED is false"}
+	if s.cfg.NotifyEnabled {
+		notifications.State = "unconfigured"
+		notifications.Detail = fmt.Sprintf("Recording %s and above to the outbox; no delivery channel is wired up yet", s.cfg.NotifySeverity)
+		if s.cfg.NotifyTransport != "" && s.cfg.NotifyTransport != "none" {
+			notifications.State = "on"
+			notifications.Detail = fmt.Sprintf("Delivering %s and above via %s", s.cfg.NotifySeverity, s.cfg.NotifyTransport)
+		}
+	}
+
 	return []web.FeatureState{
 		{Name: "Tunnel monitoring", State: "on", Detail: "Always on; uptime comes from the Cloudflare tunnel status"},
 		audit,
 		probe,
 		release,
 		public,
+		notifications,
 	}
 }
 

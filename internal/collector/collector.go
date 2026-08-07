@@ -33,17 +33,31 @@ type Status struct {
 	Cycles      int                  `json:"cycles"`
 }
 
+// EventSink receives every batch of events the collector records. It exists so
+// notifications can be attached without the collector knowing what a
+// notification is.
+type EventSink interface {
+	Dispatch(ctx context.Context, events []store.Event, tunnelNames map[string]string)
+}
+
 // Collector keeps the local database in sync with the Cloudflare API.
 type Collector struct {
 	cf    *cloudflare.Client
 	store *store.Store
 	log   *slog.Logger
 	cfg   Config
+	sink  EventSink
 
 	mu     sync.RWMutex
 	status Status
 
 	trigger chan struct{}
+}
+
+// WithEventSink attaches an observer for recorded events.
+func (c *Collector) WithEventSink(sink EventSink) *Collector {
+	c.sink = sink
+	return c
 }
 
 // New returns a Collector.
@@ -280,6 +294,32 @@ func (c *Collector) appendEvents(ctx context.Context, events []store.Event) {
 	if err := c.store.AddEvents(ctx, events); err != nil {
 		c.log.Error("writing events failed", "err", err)
 	}
+	c.observe(ctx, events)
+}
+
+// observe hands the batch to the event sink, if one is attached. It runs after
+// the write so a slow or broken sink cannot cost us the event log.
+func (c *Collector) observe(ctx context.Context, events []store.Event) {
+	if c.sink == nil {
+		return
+	}
+	names, err := c.tunnelNames(ctx)
+	if err != nil {
+		c.log.Warn("reading tunnel names for the event sink failed", "err", err)
+	}
+	c.sink.Dispatch(ctx, events, names)
+}
+
+func (c *Collector) tunnelNames(ctx context.Context) (map[string]string, error) {
+	tunnels, err := c.store.Tunnels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[string]string, len(tunnels))
+	for _, t := range tunnels {
+		names[t.ID] = t.Name
+	}
+	return names, nil
 }
 
 func (c *Collector) prune(ctx context.Context, now time.Time) {

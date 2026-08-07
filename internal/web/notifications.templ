@@ -1,0 +1,59 @@
+package web
+
+import "fmt"
+
+templ NotificationsPage(l Layout, p NotificationsPageView) {
+	@Page(l) {
+		@pageHeading("Notifications", "What CFTM decided was worth telling you about")
+		if !p.Enabled {
+			<div class="alert-info mb-6">
+				Notifications are off. Set <span class="mono">CFTM_NOTIFY_ENABLED=true</span> to start
+				recording them here.
+			</div>
+		} else if p.Transport == "" || p.Transport == "none" {
+			<div class="alert-warn mb-6">
+				No delivery channel is wired up yet, so nothing leaves the container. Everything below
+				is what <em>would</em> have been sent, deduplicated per condition and filtered at
+				<span class="mono">{ p.MinSeverity }</span> and above.
+			</div>
+		}
+		<div class="card">
+			if len(p.Items) == 0 {
+				<p class="text-sm text-slate-500">Nothing recorded yet.</p>
+			} else {
+				<ul class="divide-y divide-slate-800/60">
+					for _, n := range p.Items {
+						<li class="flex items-start gap-x-3 py-2 text-sm">
+							<span class="w-40 shrink-0 text-xs">
+								@timestamp(FormatTime(n.CreatedAt), "—")
+							</span>
+							<span class="w-24 shrink-0">
+								<span class={ BadgeClass(n.Severity) }>{ n.Severity }</span>
+							</span>
+							<span class="min-w-0 flex-1 break-words">
+								<span class="text-slate-100">{ n.Title }</span>
+								if n.Body != "" {
+									<span class="block text-slate-400">{ n.Body }</span>
+								}
+								if n.Error != "" {
+									<span class="block text-rose-300">{ n.Error }</span>
+								}
+							</span>
+							<span class="w-20 shrink-0 text-right">
+								if n.Status == "failed" {
+									<span class="badge badge-error">failed</span>
+								} else {
+									<span class="badge badge-muted">{ n.Transport }</span>
+								}
+							</span>
+						</li>
+					}
+				</ul>
+				<p class="mt-4 text-xs text-slate-500">
+					{ fmt.Sprintf("%d entries, newest first.", len(p.Items)) }
+					Repeats of the same condition are suppressed for { p.Cooldown }.
+				</p>
+			}
+		</div>
+	}
+}

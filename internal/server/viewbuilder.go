@@ -474,6 +474,33 @@ func (s *Server) AuditPage(ctx context.Context) (web.AuditPage, error) {
 	return page, nil
 }
 
+// NotificationsPage assembles the notification outbox model.
+func (s *Server) NotificationsPage(ctx context.Context) (web.NotificationsPageView, error) {
+	items, err := s.store.Notifications(ctx, 200)
+	if err != nil {
+		return web.NotificationsPageView{}, fmt.Errorf("load notifications: %w", err)
+	}
+
+	page := web.NotificationsPageView{
+		Enabled:     s.cfg.NotifyEnabled,
+		Transport:   s.cfg.NotifyTransport,
+		MinSeverity: s.cfg.NotifySeverity,
+		Cooldown:    s.cfg.NotifyCooldown.String(),
+	}
+	for _, n := range items {
+		page.Items = append(page.Items, web.NotificationItem{
+			CreatedAt: n.CreatedAt,
+			Severity:  n.Severity,
+			Title:     n.Title,
+			Body:      n.Body,
+			Transport: n.Transport,
+			Status:    n.Status,
+			Error:     n.Error,
+		})
+	}
+	return page, nil
+}
+
 // Events assembles the event log model.
 func (s *Server) Events(ctx context.Context, limit int) ([]web.Event, error) {
 	tunnels, err := s.store.Tunnels(ctx)
@@ -686,49 +713,11 @@ func toWebEvent(e store.Event, names map[string]string) web.Event {
 }
 
 func eventLabel(kind string) string {
-	switch kind {
-	case store.EventTunnelStatus:
-		return "status"
-	case store.EventTunnelAdded:
-		return "tunnel added"
-	case store.EventTunnelRemoved:
-		return "tunnel removed"
-	case store.EventConnectorAdded:
-		return "connector up"
-	case store.EventConnectorRemoved:
-		return "connector down"
-	case store.EventConfigChanged:
-		return "config"
-	case store.EventVersionDrift:
-		return "version"
-	case store.EventProbe:
-		return "probe"
-	case store.EventPollFailed:
-		return "poll failed"
-	default:
-		return kind
-	}
+	return collector.EventLabel(kind)
 }
 
 func eventSeverity(e store.Event) string {
-	switch e.Kind {
-	case store.EventPollFailed, store.EventTunnelRemoved:
-		return string(collector.SeverityCritical)
-	case store.EventTunnelStatus:
-		if e.ToState == "healthy" {
-			return string(collector.SeverityInfo)
-		}
-		return string(collector.SeverityCritical)
-	case store.EventConnectorRemoved:
-		return string(collector.SeverityWarning)
-	case store.EventProbe:
-		if prober.IsFailure(e.ToState) {
-			return string(collector.SeverityWarning)
-		}
-		return string(collector.SeverityInfo)
-	default:
-		return string(collector.SeverityInfo)
-	}
+	return string(collector.EventSeverity(e))
 }
 
 func tunnelNames(tunnels []store.Tunnel) map[string]string {
