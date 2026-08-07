@@ -1,0 +1,59 @@
+package web
+
+import "fmt"
+
+templ LogsPage(l Layout, p LogPage) {
+	@Page(l) {
+		@pageHeading("Logs", "In-memory buffer of recent log records")
+		<div class="card">
+			@LogLines(p)
+		</div>
+	}
+}
+
+templ LogLines(p LogPage) {
+	<div id="log-lines" hx-get="/partials/log" hx-trigger="every 10s" hx-swap="outerHTML">
+		if len(p.Lines) == 0 {
+			<p class="text-sm text-slate-500">Nothing logged yet.</p>
+		} else {
+			<ol class="space-y-0.5 font-mono text-xs">
+				for _, line := range p.Lines {
+					<li class="flex gap-3">
+						<span class="shrink-0 text-slate-600">{ line.Time.Format("15:04:05") }</span>
+						<span class={ "w-12 shrink-0", logLevelClass(line.Level) }>{ line.Level }</span>
+						<span class="min-w-0 break-all text-slate-300">{ line.Message }</span>
+					</li>
+				}
+			</ol>
+		}
+	</div>
+}
+
+templ AboutPageView(l Layout, p AboutPage) {
+	@Page(l) {
+		@pageHeading("About", "Build and runtime information")
+		<div class="card mb-6">
+			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Build</h2>
+			<dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+				@fact("Version", p.Version)
+				@fact("Commit", p.Commit)
+				@fact("Built", p.Date)
+				@fact("Go", p.GoVersion)
+			</dl>
+		</div>
+		<div class="card">
+			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Configuration</h2>
+			<dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+				@fact("Cloudflare account", p.AccountID)
+				@fact("Poll interval", p.PollInterval.String())
+				@fact("Retention", fmt.Sprintf("%d days", p.Retention))
+				@fact("Access audit", enabledLabel(p.AuditEnabled))
+				@fact("Probing", enabledLabel(p.ProbeEnabled))
+				@fact("Access service token", enabledLabel(p.ProbeToken))
+			</dl>
+			<p class="mt-4 text-xs text-slate-500">
+				Secrets are read from the environment only and are never rendered here or exposed by the API.
+			</p>
+		</div>
+	}
+}

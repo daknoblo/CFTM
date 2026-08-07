@@ -1,0 +1,375 @@
+// Package web contains the server-rendered UI components and their view models.
+package web
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/daknoblo/CFTM/internal/collector"
+)
+
+// Layout is the chrome shared by every page.
+type Layout struct {
+	Title        string
+	ActivePath   string
+	AssetVersion string
+	Version      string
+}
+
+// Finding is one derived health observation, ready for display.
+type Finding struct {
+	Code     string `json:"code"`
+	Severity string `json:"severity"`
+	Message  string `json:"message"`
+	Hostname string `json:"hostname,omitempty"`
+}
+
+// Heartbeat is one bucket of the uptime bar.
+type Heartbeat struct {
+	Status string `json:"status"`
+	Label  string `json:"label"`
+}
+
+// Uptime is a rendered availability figure.
+type Uptime struct {
+	Label    string        `json:"label"`
+	Percent  float64       `json:"percent"`
+	Observed bool          `json:"observed"`
+	Window   time.Duration `json:"window"`
+}
+
+// Connector is a running cloudflared instance.
+type Connector struct {
+	ID            string    `json:"id"`
+	ShortID       string    `json:"shortId"`
+	Version       string    `json:"version"`
+	Arch          string    `json:"arch"`
+	ConfigVersion int       `json:"configVersion"`
+	Features      []string  `json:"features"`
+	RunAt         time.Time `json:"runAt"`
+	Outdated      bool      `json:"outdated"`
+}
+
+// Connection is one QUIC connection to a Cloudflare data center.
+type Connection struct {
+	UUID     string    `json:"uuid"`
+	Colo     string    `json:"colo"`
+	OriginIP string    `json:"originIp"`
+	OpenedAt time.Time `json:"openedAt"`
+}
+
+// Ingress is one hostname-to-origin mapping.
+type Ingress struct {
+	TunnelID    string      `json:"tunnelId"`
+	TunnelName  string      `json:"tunnelName"`
+	Hostname    string      `json:"hostname"`
+	Path        string      `json:"path,omitempty"`
+	Service     string      `json:"service"`
+	Kind        string      `json:"kind"`
+	Probeable   bool        `json:"probeable"`
+	NoTLSVerify bool        `json:"noTlsVerify"`
+	Access      AccessState `json:"access"`
+	Probe       Probe       `json:"probe"`
+}
+
+// AccessState summarizes the Access protection of a hostname.
+type AccessState struct {
+	Known     bool   `json:"known"`
+	Protected bool   `json:"protected"`
+	AppName   string `json:"appName,omitempty"`
+	HasBypass bool   `json:"hasBypass"`
+	HasToken  bool   `json:"hasToken"`
+}
+
+// Probe is the latest probe outcome for a hostname.
+type Probe struct {
+	Known      bool      `json:"known"`
+	Class      string    `json:"class,omitempty"`
+	StatusCode int       `json:"statusCode,omitempty"`
+	LatencyMS  int       `json:"latencyMs,omitempty"`
+	Error      string    `json:"error,omitempty"`
+	CheckedAt  time.Time `json:"checkedAt,omitzero"`
+}
+
+// TunnelCard is the dashboard summary of one tunnel.
+type TunnelCard struct {
+	ID           string      `json:"id"`
+	Name         string      `json:"name"`
+	Status       string      `json:"status"`
+	Severity     string      `json:"severity,omitempty"`
+	Connectors   int         `json:"connectors"`
+	Connections  int         `json:"connections"`
+	Colos        []string    `json:"colos"`
+	Versions     []string    `json:"versions"`
+	IngressCount int         `json:"ingressCount"`
+	Findings     []Finding   `json:"findings"`
+	Uptime24h    Uptime      `json:"uptime24h"`
+	Heartbeats   []Heartbeat `json:"-"`
+	LastSeen     time.Time   `json:"lastSeen"`
+}
+
+// TunnelDetail is the full view of a single tunnel.
+type TunnelDetail struct {
+	Card        TunnelCard   `json:"card"`
+	TunType     string       `json:"tunType"`
+	ConfigSrc   string       `json:"configSrc"`
+	Remote      bool         `json:"remoteConfig"`
+	CreatedAt   time.Time    `json:"createdAt"`
+	ActiveAt    time.Time    `json:"connsActiveAt"`
+	InactiveAt  time.Time    `json:"connsInactiveAt"`
+	ConfigVer   int          `json:"configVersion"`
+	Connectors  []Connector  `json:"connectors"`
+	Connections []Connection `json:"connections"`
+	Ingress     []Ingress    `json:"ingress"`
+	Uptimes     []Uptime     `json:"uptimes"`
+	Events      []Event      `json:"events"`
+}
+
+// Event is one entry of the event log.
+type Event struct {
+	Timestamp  time.Time `json:"timestamp"`
+	Kind       string    `json:"kind"`
+	KindLabel  string    `json:"kindLabel"`
+	TunnelID   string    `json:"tunnelId,omitempty"`
+	TunnelName string    `json:"tunnelName,omitempty"`
+	Hostname   string    `json:"hostname,omitempty"`
+	From       string    `json:"from,omitempty"`
+	To         string    `json:"to,omitempty"`
+	Message    string    `json:"message"`
+	Severity   string    `json:"severity"`
+}
+
+// PollStatus is the collector health shown in the header. It carries no
+// credential material, only whether one is configured.
+type PollStatus struct {
+	LastRun       time.Time `json:"lastRun"`
+	LastSuccess   time.Time `json:"lastSuccess"`
+	DurationMS    int       `json:"durationMs"`
+	Error         string    `json:"error,omitempty"`
+	RateKnown     bool      `json:"rateKnown"`
+	RateRemaining int       `json:"rateRemaining"`
+	RateQuota     int       `json:"rateQuota"`
+	RateResetAt   time.Time `json:"rateResetAt,omitzero"`
+	ProbeEnabled  bool      `json:"probeEnabled"`
+	ProbeToken    bool      `json:"probeTokenConfigured"`
+}
+
+// Dashboard is the model of the index page.
+type Dashboard struct {
+	Tunnels []TunnelCard `json:"tunnels"`
+	Poll    PollStatus   `json:"poll"`
+	Totals  Totals       `json:"totals"`
+}
+
+// Totals are the account-wide counters shown above the cards.
+type Totals struct {
+	Tunnels     int `json:"tunnels"`
+	Healthy     int `json:"healthy"`
+	Connectors  int `json:"connectors"`
+	Connections int `json:"connections"`
+	Hostnames   int `json:"hostnames"`
+	Findings    int `json:"findings"`
+	Unprotected int `json:"unprotected"`
+}
+
+// IngressPage is the model of the ingress inventory page.
+type IngressPage struct {
+	Rules        []Ingress
+	ProbeEnabled bool
+	ProbeToken   bool
+}
+
+// AuditPage is the model of the Access audit page.
+type AuditPage struct {
+	AuditedAt time.Time
+	Available bool
+	Apps      []AccessApp
+	Tokens    []ServiceToken
+	// Unprotected are hostnames without an Access application that were not
+	// declared as intentional.
+	Unprotected []Ingress
+	// IntentionallyPublic are the declared exceptions, monitored like any other
+	// hostname but not counted as a gap.
+	IntentionallyPublic []Ingress
+	Findings            []Finding
+}
+
+// AccessApp is a Cloudflare Access application with its policy summary.
+type AccessApp struct {
+	Name        string
+	Domains     []string
+	Type        string
+	PolicyCount int
+	HasBypass   bool
+	HasToken    bool
+	Matched     bool
+}
+
+// ServiceToken is Access service token metadata.
+type ServiceToken struct {
+	Name      string
+	ClientID  string
+	ExpiresAt time.Time
+	DaysLeft  int
+	Severity  string
+}
+
+// AboutPage lists build and runtime information.
+type AboutPage struct {
+	Version      string
+	Commit       string
+	Date         string
+	GoVersion    string
+	AccountID    string
+	PollInterval time.Duration
+	ProbeEnabled bool
+	ProbeToken   bool
+	AuditEnabled bool
+	Retention    int
+}
+
+// LogPage renders the in-memory log buffer.
+type LogPage struct {
+	Lines []LogLine
+}
+
+// LogLine is one buffered log record.
+type LogLine struct {
+	Time    time.Time
+	Level   string
+	Message string
+}
+
+// StatusDotClass maps a tunnel status onto its indicator class.
+func StatusDotClass(status string) string {
+	switch status {
+	case "healthy":
+		return "status-dot status-dot-healthy"
+	case "degraded":
+		return "status-dot status-dot-degraded"
+	case "down":
+		return "status-dot status-dot-down"
+	case "inactive":
+		return "status-dot status-dot-inactive"
+	default:
+		return "status-dot"
+	}
+}
+
+// BeatClass maps a heartbeat bucket onto its bar class.
+func BeatClass(status string) string {
+	switch status {
+	case "healthy":
+		return "beat beat-healthy"
+	case "degraded":
+		return "beat beat-degraded"
+	case "down":
+		return "beat beat-down"
+	case "inactive":
+		return "beat beat-inactive"
+	default:
+		return "beat"
+	}
+}
+
+// BadgeClass maps a severity onto its badge class.
+func BadgeClass(severity string) string {
+	switch severity {
+	case string(collector.SeverityCritical):
+		return "badge badge-error"
+	case string(collector.SeverityWarning):
+		return "badge badge-warn"
+	case string(collector.SeverityInfo):
+		return "badge badge-muted"
+	default:
+		return "badge badge-ok"
+	}
+}
+
+// ProbeBadgeClass maps a probe class onto its badge class.
+func ProbeBadgeClass(class string) string {
+	switch class {
+	case "ok":
+		return "badge badge-ok"
+	case "access_challenge", "access_denied":
+		return "badge badge-muted"
+	case "":
+		return "badge"
+	default:
+		return "badge badge-error"
+	}
+}
+
+// StatusBadgeClass maps a tunnel status onto its badge class.
+func StatusBadgeClass(status string) string {
+	switch status {
+	case "healthy":
+		return "badge badge-ok"
+	case "degraded":
+		return "badge badge-warn"
+	case "down":
+		return "badge badge-error"
+	default:
+		return "badge badge-muted"
+	}
+}
+
+// FormatPercent renders an availability figure, or a dash when unobserved.
+func FormatPercent(u Uptime) string {
+	if !u.Observed {
+		return "n/a"
+	}
+	return fmt.Sprintf("%.2f%%", u.Percent)
+}
+
+// FormatTime renders a timestamp in RFC 3339 so the browser can localize it.
+func FormatTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
+// FormatRelative renders a coarse "x ago" label.
+func FormatRelative(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return "never"
+	}
+	d := now.Sub(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	}
+}
+
+// FormatWindow renders an uptime window as a compact label.
+func FormatWindow(d time.Duration) string {
+	switch {
+	case d >= 24*time.Hour:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	case d >= time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+}
+
+// Join renders a string slice as a comma-separated list.
+func Join(values []string) string {
+	if len(values) == 0 {
+		return "—"
+	}
+	return strings.Join(values, ", ")
+}
+
+// FilterKey builds the lowercase haystack used by the client-side table filter.
+func FilterKey(parts ...string) string {
+	return strings.ToLower(strings.Join(parts, " "))
+}

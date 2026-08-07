@@ -1,0 +1,32 @@
+# Build artifacts and local tooling
+/bin/
+/out/
+tailwindcss
+
+# Local data / runtime
+/appdata/
+*.db
+*.db-shm
+*.db-wal
+
+# Scan reports
+trivy-results.*
+*.sarif
+gosec*.json
+results.json
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Editor / OS noise
+.DS_Store
+.vscode/
+.idea/
+
+# Node (only used if Tailwind is run via npm locally)
+node_modules/
+
+# Note: generated files (internal/web/*_templ.go and
+# internal/web/assets/static/app.css) ARE committed.

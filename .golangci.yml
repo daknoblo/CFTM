@@ -1,0 +1,48 @@
+version: "2"
+
+run:
+  # Pin the target Go version for the analysis, consistent with go.mod.
+  go: "1.26"
+  timeout: 5m
+
+linters:
+  # Standard set: errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  enable:
+    # Security scanner (hard-coded credentials, weak crypto, file permissions).
+    - gosec
+    # Unclosed HTTP response bodies leak connections.
+    - bodyclose
+    # Error comparison/wrapping mistakes that break errors.Is/As.
+    - errorlint
+    # Typos in comments, strings and identifiers.
+    - misspell
+    # Redundant type conversions.
+    - unconvert
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - (*database/sql.DB).Close
+        # A failed response write means the client is already gone.
+        - (net/http.ResponseWriter).Write
+    misspell:
+      locale: US
+  exclusions:
+    rules:
+      # Tests read and write files in t.TempDir(); G304 (file inclusion via a
+      # variable) has no meaning there.
+      - path: _test\.go
+        linters: [gosec]
+
+formatters:
+  enable:
+    - gofmt
+
+issues:
+  # Report every finding (the defaults cap similar messages at 3).
+  max-issues-per-linter: 0
+  max-same-issues: 0

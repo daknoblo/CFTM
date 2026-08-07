@@ -1,0 +1,69 @@
+package web
+
+templ Page(l Layout) {
+	<!DOCTYPE html>
+	<html lang="en" class="h-full">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="htmx-config" content="{&#34;includeIndicatorStyles&#34;:false}"/>
+			<title>{ l.Title } · CFTM</title>
+			<link rel="stylesheet" href={ "/static/app.css?v=" + l.AssetVersion }/>
+			<script src={ "/static/htmx.min.js?v=" + l.AssetVersion } defer></script>
+			<script src={ "/static/app.js?v=" + l.AssetVersion } defer></script>
+		</head>
+		<body class="min-h-full bg-slate-950 text-slate-200 antialiased">
+			@nav(l)
+			<main class="mx-auto max-w-7xl px-4 pb-16 pt-6">
+				{ children... }
+			</main>
+		</body>
+	</html>
+}
+
+templ nav(l Layout) {
+	<header class="border-b border-slate-800 bg-slate-900/60">
+		<div class="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-3">
+			<a href="/" class="text-lg font-semibold tracking-tight text-slate-100">
+				CFTM
+				<span class="ml-1 text-xs font-normal text-slate-500">Cloudflare Tunnel Monitor</span>
+			</a>
+			<nav class="flex flex-wrap items-center gap-1 text-sm">
+				@navLink(l, "/", "Dashboard")
+				@navLink(l, "/ingress", "Ingress")
+				@navLink(l, "/audit", "Access audit")
+				@navLink(l, "/events", "Events")
+				@navLink(l, "/logs", "Logs")
+				@navLink(l, "/about", "About")
+			</nav>
+			<div class="ml-auto text-xs text-slate-500">{ l.Version }</div>
+		</div>
+	</header>
+}
+
+templ navLink(l Layout, href string, label string) {
+	if l.ActivePath == href {
+		<a href={ templ.SafeURL(href) } class="nav-link nav-link-active">{ label }</a>
+	} else {
+		<a href={ templ.SafeURL(href) } class="nav-link">{ label }</a>
+	}
+}
+
+// pageHeading renders a title with an optional subtitle.
+templ pageHeading(title string, subtitle string) {
+	<div class="mb-6">
+		<h1 class="text-2xl font-semibold text-slate-100">{ title }</h1>
+		if subtitle != "" {
+			<p class="mt-1 text-sm text-slate-400">{ subtitle }</p>
+		}
+	</div>
+}
+
+// timestamp emits an RFC 3339 value that app.js localizes in the browser.
+templ timestamp(t string, fallback string) {
+	if t == "" {
+		<span class="text-slate-500">{ fallback }</span>
+	} else {
+		<time datetime={ t } class="text-slate-300">{ t }</time>
+	}
+}

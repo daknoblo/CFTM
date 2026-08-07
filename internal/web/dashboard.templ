@@ -1,0 +1,161 @@
+package web
+
+import "fmt"
+
+templ DashboardPage(l Layout, d Dashboard) {
+	@Page(l) {
+		@pageHeading("Tunnels", "Health, connectors and ingress across the account")
+		@PollStatusBar(d.Poll)
+		@TotalsRow(d.Totals)
+		@TunnelCards(d.Tunnels)
+	}
+}
+
+// PollStatusBar refreshes on its own so a stalled collector is visible quickly.
+templ PollStatusBar(p PollStatus) {
+	<div
+		id="poll-status"
+		hx-get="/partials/poll-status"
+		hx-trigger="every 10s"
+		hx-swap="outerHTML"
+		class="mb-6"
+	>
+		if p.Error != "" {
+			<div class="alert-error">
+				<span class="font-medium">Last poll failed:</span>
+				{ p.Error }
+			</div>
+		}
+		<div class="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-400">
+			<span>
+				Last poll
+				@timestamp(FormatTime(p.LastRun), "never")
+				if p.DurationMS > 0 {
+					<span class="text-slate-500">({ fmt.Sprintf("%dms", p.DurationMS) })</span>
+				}
+			</span>
+			if p.RateKnown {
+				<span>
+					API budget
+					<span class="text-slate-300">{ fmt.Sprintf("%d", p.RateRemaining) }</span>
+					if p.RateQuota > 0 {
+						<span class="text-slate-500">/ { fmt.Sprintf("%d", p.RateQuota) }</span>
+					}
+					<span class="text-slate-500">remaining</span>
+				</span>
+			}
+			<span>
+				Probing
+				if !p.ProbeEnabled {
+					<span class="badge badge-muted">off</span>
+				} else if p.ProbeToken {
+					<span class="badge badge-ok">end to end</span>
+				} else {
+					<span class="badge badge-warn">edge only</span>
+				}
+			</span>
+			<form hx-post="/refresh" hx-target="#tunnel-cards" hx-swap="outerHTML" class="ml-auto">
+				<button type="submit" class="btn-ghost">Refresh now</button>
+			</form>
+		</div>
+	</div>
+}
+
+templ TotalsRow(t Totals) {
+	<div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+		@statTile("Tunnels", fmt.Sprintf("%d", t.Tunnels), "")
+		@statTile("Healthy", fmt.Sprintf("%d / %d", t.Healthy, t.Tunnels), healthyTone(t))
+		@statTile("Connectors", fmt.Sprintf("%d", t.Connectors), "")
+		@statTile("Edge connections", fmt.Sprintf("%d", t.Connections), "")
+		@statTile("Hostnames", fmt.Sprintf("%d", t.Hostnames), "")
+		@statTile("Findings", fmt.Sprintf("%d", t.Findings), findingsTone(t))
+	</div>
+}
+
+templ statTile(label string, value string, tone string) {
+	<div class="card p-4">
+		<div class="text-xs uppercase tracking-wide text-slate-500">{ label }</div>
+		if tone == "" {
+			<div class="mt-1 text-xl font-semibold text-slate-100">{ value }</div>
+		} else {
+			<div class={ "mt-1 text-xl font-semibold", tone }>{ value }</div>
+		}
+	</div>
+}
+
+// TunnelCards is swapped as a whole by the polling trigger and the refresh button.
+templ TunnelCards(cards []TunnelCard) {
+	<div
+		id="tunnel-cards"
+		hx-get="/partials/tunnels"
+		hx-trigger="every 10s"
+		hx-swap="outerHTML"
+		class="grid grid-cols-1 gap-4 lg:grid-cols-2"
+	>
+		if len(cards) == 0 {
+			<div class="alert-info lg:col-span-2">
+				No tunnels found yet. The first poll runs at start-up; check the logs if this persists.
+			</div>
+		}
+		for _, card := range cards {
+			@tunnelCard(card)
+		}
+	</div>
+}
+
+templ tunnelCard(c TunnelCard) {
+	<a href={ templ.SafeURL("/tunnels/" + c.ID) } class="card card-link">
+		<div class="flex items-start gap-3">
+			<span class={ StatusDotClass(c.Status), "mt-1.5" }></span>
+			<div class="min-w-0 flex-1">
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="truncate text-base font-semibold text-slate-100">{ c.Name }</span>
+					<span class={ StatusBadgeClass(c.Status) }>{ c.Status }</span>
+					if len(c.Findings) > 0 {
+						<span class={ BadgeClass(c.Severity) }>
+							{ fmt.Sprintf("%d finding(s)", len(c.Findings)) }
+						</span>
+					}
+				</div>
+				<div class="mono mt-1 truncate">{ c.ID }</div>
+			</div>
+			<div class="text-right">
+				<div class="text-lg font-semibold text-slate-100">{ FormatPercent(c.Uptime24h) }</div>
+				<div class="text-xs text-slate-500">{ c.Uptime24h.Label }</div>
+			</div>
+		</div>
+		<div class="mt-4 flex gap-0.5" title="Availability over the last 24 hours">
+			for _, beat := range c.Heartbeats {
+				<span class={ BeatClass(beat.Status) } title={ beat.Label }></span>
+			}
+		</div>
+		<dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
+			@cardStat("Connectors", fmt.Sprintf("%d", c.Connectors))
+			@cardStat("Connections", fmt.Sprintf("%d / 4", c.Connections))
+			@cardStat("Data centers", Join(c.Colos))
+			@cardStat("Hostnames", fmt.Sprintf("%d", c.IngressCount))
+		</dl>
+		if len(c.Findings) > 0 {
+			<ul class="mt-4 space-y-1">
+				for _, f := range c.Findings {
+					<li class="flex items-start gap-2 text-sm text-slate-300">
+						<span class={ BadgeClass(f.Severity) }>{ f.Severity }</span>
+						<span>
+							if f.Hostname != "" {
+								<span class="mono mr-1">{ f.Hostname }</span>
+							}
+							{ f.Message }
+						</span>
+					</li>
+				}
+			</ul>
+		}
+	</a>
+}
+
+templ cardStat(label string, value string) {
+	<div>
+		<dt class="text-xs uppercase tracking-wide text-slate-500">{ label }</dt>
+		<dd class="truncate text-slate-200">{ value }</dd>
+	</div>
+}

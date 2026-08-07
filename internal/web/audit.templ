@@ -1,0 +1,182 @@
+package web
+
+import "fmt"
+
+templ AuditPageView(l Layout, p AuditPage) {
+	@Page(l) {
+		@pageHeading("Access audit", "Which hostnames are protected, and by what")
+		if !p.Available {
+			<div class="alert-warn mb-6">
+				No successful Access audit yet. The API token needs
+				<span class="mono">Account : Access: Apps and Policies : Read</span>
+				and <span class="mono">Account : Access: Service Tokens : Read</span>.
+			</div>
+		} else {
+			<p class="mb-6 text-xs text-slate-500">
+				Last audit
+				@timestamp(FormatTime(p.AuditedAt), "never")
+			</p>
+		}
+		@auditUnprotected(p.Unprotected)
+		@auditIntentionallyPublic(p.IntentionallyPublic)
+		@auditTokens(p.Tokens)
+		@auditApps(p.Apps)
+	}
+}
+
+templ auditUnprotected(rules []Ingress) {
+	<div class="card mb-6">
+		<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+			Hostnames without an Access application ({ fmt.Sprintf("%d", len(rules)) })
+		</h2>
+		if len(rules) == 0 {
+			<p class="text-sm text-emerald-300">Every public hostname is covered by an Access application.</p>
+		} else {
+			<ul class="space-y-1 text-sm">
+				for _, rule := range rules {
+					<li class="flex flex-wrap items-center gap-2">
+						<span class="badge badge-error">public</span>
+						<span class="text-slate-100">{ rule.Hostname }</span>
+						<span class="mono">{ rule.Service }</span>
+						<span class="text-slate-500">via { rule.TunnelName }</span>
+					</li>
+				}
+			</ul>
+		}
+	</div>
+}
+
+// Declared via CFTM_EXPECTED_PUBLIC. Listed rather than hidden, so the decision
+// stays visible, and probed like everything else.
+templ auditIntentionallyPublic(rules []Ingress) {
+	if len(rules) > 0 {
+		<div class="card mb-6">
+			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+				Intentionally public ({ fmt.Sprintf("%d", len(rules)) })
+			</h2>
+			<p class="mb-3 text-xs text-slate-500">
+				Declared as public on purpose, so they are not counted as a gap. They are still
+				probed like every other hostname, and reach their origin directly because no
+				Access application is in the way.
+			</p>
+			<ul class="space-y-1 text-sm">
+				for _, rule := range rules {
+					<li class="flex flex-wrap items-center gap-2">
+						<span class="badge badge-muted">by design</span>
+						<span class="text-slate-100">{ rule.Hostname }</span>
+						<span class="mono">{ rule.Service }</span>
+						<span class="text-slate-500">via { rule.TunnelName }</span>
+						<span class={ ProbeBadgeClass(rule.Probe.Class) }>{ probeLabel(rule.Probe) }</span>
+					</li>
+				}
+			</ul>
+		</div>
+	}
+}
+
+templ auditTokens(tokens []ServiceToken) {
+	<div class="card mb-6">
+		<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+			Access service tokens ({ fmt.Sprintf("%d", len(tokens)) })
+		</h2>
+		if len(tokens) == 0 {
+			<p class="text-sm text-slate-500">No service tokens in this account.</p>
+		} else {
+			<div class="overflow-x-auto">
+				<table class="w-full">
+					<thead>
+						<tr>
+							<th class="table-head">Name</th>
+							<th class="table-head">Client ID</th>
+							<th class="table-head">Expires</th>
+							<th class="table-head">Remaining</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, t := range tokens {
+							<tr>
+								<td class="table-cell text-slate-100">{ t.Name }</td>
+								<td class="table-cell mono">{ t.ClientID }</td>
+								<td class="table-cell">
+									@timestamp(FormatTime(t.ExpiresAt), "never")
+								</td>
+								<td class="table-cell">
+									if t.ExpiresAt.IsZero() {
+										<span class="text-slate-500">—</span>
+									} else {
+										<span class={ tokenBadgeClass(t) }>{ fmt.Sprintf("%d days", t.DaysLeft) }</span>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</div>
+}
+
+templ auditApps(apps []AccessApp) {
+	<div class="card" data-filter-scope>
+		<div class="mb-4 flex flex-wrap items-center gap-3">
+			<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">
+				Access applications ({ fmt.Sprintf("%d", len(apps)) })
+			</h2>
+			<input
+				type="search"
+				class="input ml-auto w-64"
+				placeholder="Filter application"
+				data-filter-input
+				aria-label="Filter Access applications"
+			/>
+		</div>
+		if len(apps) == 0 {
+			<p class="text-sm text-slate-500">No Access applications found.</p>
+		} else {
+			<div class="overflow-x-auto">
+				<table class="w-full">
+					<thead>
+						<tr>
+							<th class="table-head">Application</th>
+							<th class="table-head">Domains</th>
+							<th class="table-head">Policies</th>
+							<th class="table-head">Service token</th>
+							<th class="table-head">Bypass</th>
+							<th class="table-head">Matches ingress</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, app := range apps {
+							<tr data-filter-row={ FilterKey(app.Name, Join(app.Domains)) }>
+								<td class="table-cell text-slate-100">{ app.Name }</td>
+								<td class="table-cell mono">{ Join(app.Domains) }</td>
+								<td class="table-cell">{ fmt.Sprintf("%d", app.PolicyCount) }</td>
+								<td class="table-cell">
+									if app.HasToken {
+										<span class="badge badge-ok">yes</span>
+									} else {
+										<span class="badge badge-muted">no</span>
+									}
+								</td>
+								<td class="table-cell">
+									if app.HasBypass {
+										<span class="badge badge-warn">yes</span>
+									} else {
+										<span class="badge badge-muted">no</span>
+									}
+								</td>
+								<td class="table-cell">
+									if app.Matched {
+										<span class="badge badge-ok">yes</span>
+									} else {
+										<span class="badge badge-muted">orphan</span>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</div>
+}

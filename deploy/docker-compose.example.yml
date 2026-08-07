@@ -1,0 +1,34 @@
+# CFTM — Cloudflare Tunnel Monitor
+#
+# Minimal deployment. Copy this file to docker-compose.yml, put the two
+# credentials in a .env file next to it, then `docker compose up -d`.
+#
+# Everything else has a sensible default. See docker-compose.full.example.yml
+# for the complete set of settings.
+
+services:
+  cftm:
+    image: ghcr.io/daknoblo/cftm:latest
+    container_name: cftm
+    restart: unless-stopped
+    # Bind to loopback so the dashboard is only reachable through the tunnel.
+    # Without the prefix Docker publishes on 0.0.0.0 and writes its own DNAT
+    # rules past the host firewall.
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      CLOUDFLARE_API_TOKEN: "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN in your .env}"
+      CLOUDFLARE_ACCOUNT_ID: "${CLOUDFLARE_ACCOUNT_ID:?set CLOUDFLARE_ACCOUNT_ID in your .env}"
+      TZ: "Europe/Berlin"
+    volumes:
+      - cftm-data:/appdata
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+
+volumes:
+  cftm-data:

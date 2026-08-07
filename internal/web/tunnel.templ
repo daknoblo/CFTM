@@ -1,0 +1,196 @@
+package web
+
+import "fmt"
+
+templ TunnelPage(l Layout, d TunnelDetail) {
+	@Page(l) {
+		<div class="mb-6 flex flex-wrap items-center gap-3">
+			<span class={ StatusDotClass(d.Card.Status) }></span>
+			<h1 class="text-2xl font-semibold text-slate-100">{ d.Card.Name }</h1>
+			<span class={ StatusBadgeClass(d.Card.Status) }>{ d.Card.Status }</span>
+			<a href="/" class="btn-ghost ml-auto">Back to dashboard</a>
+		</div>
+		<div class="mono mb-6">{ d.Card.ID }</div>
+		@tunnelUptimes(d)
+		@tunnelFacts(d)
+		@tunnelFindings(d.Card.Findings)
+		@tunnelConnectors(d.Connectors)
+		@tunnelConnections(d.Connections)
+		@tunnelIngress(d.Ingress)
+		@tunnelEvents(d.Events)
+	}
+}
+
+templ tunnelUptimes(d TunnelDetail) {
+	<div class="card mb-6">
+		<div class="mb-4 flex flex-wrap gap-6">
+			for _, u := range d.Uptimes {
+				<div>
+					<div class="text-xs uppercase tracking-wide text-slate-500">{ u.Label }</div>
+					<div class="text-xl font-semibold text-slate-100">{ FormatPercent(u) }</div>
+				</div>
+			}
+		</div>
+		<div class="flex gap-0.5" title="Availability over the last 24 hours">
+			for _, beat := range d.Card.Heartbeats {
+				<span class={ BeatClass(beat.Status) } title={ beat.Label }></span>
+			}
+		</div>
+	</div>
+}
+
+templ tunnelFacts(d TunnelDetail) {
+	<div class="card mb-6">
+		<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Tunnel</h2>
+		<dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+			@fact("Type", d.TunType)
+			@fact("Configuration source", d.ConfigSrc)
+			@fact("Configuration version", fmt.Sprintf("%d", d.ConfigVer))
+			@fact("Data centers", Join(d.Card.Colos))
+			@factTime("Created", FormatTime(d.CreatedAt))
+			@factTime("Connections active since", FormatTime(d.ActiveAt))
+			@factTime("Connections inactive since", FormatTime(d.InactiveAt))
+			@factTime("Last seen", FormatTime(d.Card.LastSeen))
+		</dl>
+	</div>
+}
+
+templ fact(label string, value string) {
+	<div>
+		<dt class="text-xs uppercase tracking-wide text-slate-500">{ label }</dt>
+		<dd class="text-slate-200">
+			if value == "" {
+				<span class="text-slate-500">—</span>
+			} else {
+				{ value }
+			}
+		</dd>
+	</div>
+}
+
+templ factTime(label string, value string) {
+	<div>
+		<dt class="text-xs uppercase tracking-wide text-slate-500">{ label }</dt>
+		<dd>
+			@timestamp(value, "—")
+		</dd>
+	</div>
+}
+
+templ tunnelFindings(findings []Finding) {
+	if len(findings) > 0 {
+		<div class="card mb-6">
+			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Findings</h2>
+			<ul class="space-y-2">
+				for _, f := range findings {
+					<li class="flex items-start gap-2 text-sm text-slate-300">
+						<span class={ BadgeClass(f.Severity) }>{ f.Severity }</span>
+						<span>
+							if f.Hostname != "" {
+								<span class="mono mr-1">{ f.Hostname }</span>
+							}
+							{ f.Message }
+						</span>
+					</li>
+				}
+			</ul>
+		</div>
+	}
+}
+
+templ tunnelConnectors(connectors []Connector) {
+	<div class="card mb-6">
+		<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+			Connectors ({ fmt.Sprintf("%d", len(connectors)) })
+		</h2>
+		if len(connectors) == 0 {
+			<p class="text-sm text-slate-500">No cloudflared instance is currently registered.</p>
+		} else {
+			<div class="overflow-x-auto">
+				<table class="w-full">
+					<thead>
+						<tr>
+							<th class="table-head">Connector</th>
+							<th class="table-head">cloudflared</th>
+							<th class="table-head">Architecture</th>
+							<th class="table-head">Config</th>
+							<th class="table-head">Features</th>
+							<th class="table-head">Running since</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, c := range connectors {
+							<tr>
+								<td class="table-cell mono">{ c.ShortID }</td>
+								<td class="table-cell">
+									{ c.Version }
+									if c.Outdated {
+										<span class="badge badge-warn ml-1">outdated</span>
+									}
+								</td>
+								<td class="table-cell">{ c.Arch }</td>
+								<td class="table-cell">{ fmt.Sprintf("v%d", c.ConfigVersion) }</td>
+								<td class="table-cell">{ Join(c.Features) }</td>
+								<td class="table-cell">
+									@timestamp(FormatTime(c.RunAt), "—")
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</div>
+}
+
+templ tunnelConnections(connections []Connection) {
+	<div class="card mb-6">
+		<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+			Edge connections ({ fmt.Sprintf("%d of 4", len(connections)) })
+		</h2>
+		if len(connections) == 0 {
+			<p class="text-sm text-slate-500">No connection to the Cloudflare edge.</p>
+		} else {
+			<div class="overflow-x-auto">
+				<table class="w-full">
+					<thead>
+						<tr>
+							<th class="table-head">Data center</th>
+							<th class="table-head">Origin IP</th>
+							<th class="table-head">Open since</th>
+							<th class="table-head">Connection</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, c := range connections {
+							<tr>
+								<td class="table-cell">{ c.Colo }</td>
+								<td class="table-cell mono">{ c.OriginIP }</td>
+								<td class="table-cell">
+									@timestamp(FormatTime(c.OpenedAt), "—")
+								</td>
+								<td class="table-cell mono">{ c.UUID }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</div>
+}
+
+templ tunnelIngress(rules []Ingress) {
+	<div class="card mb-6">
+		<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+			Ingress rules ({ fmt.Sprintf("%d", len(rules)) })
+		</h2>
+		@ingressTable(rules, false)
+	</div>
+}
+
+templ tunnelEvents(events []Event) {
+	<div class="card">
+		<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Recent events</h2>
+		@eventList(events)
+	</div>
+}

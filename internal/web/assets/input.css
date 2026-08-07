@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The [hidden] attribute must win over display utilities like .flex (author
+   styles otherwise beat the user-agent rule), so filtered rows actually hide. */
+[hidden] {
+  display: none !important;
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-slate-800 bg-slate-900/50 p-5 shadow-lg shadow-black/20;
+  }
+  .card-link {
+    @apply block transition hover:border-slate-600 hover:bg-slate-900/80;
+  }
+
+  .nav-link {
+    @apply rounded-md px-3 py-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-slate-100;
+  }
+  .nav-link-active {
+    @apply bg-slate-800 text-slate-100;
+  }
+
+  .btn-primary {
+    @apply rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white;
+  }
+
+  .input {
+    @apply rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500;
+  }
+  .select-filter {
+    @apply rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-sm text-slate-300 outline-none transition hover:border-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500;
+  }
+
+  .badge {
+    @apply inline-block rounded-full bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300;
+  }
+  .badge-ok {
+    @apply bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30;
+  }
+  .badge-warn {
+    @apply bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/30;
+  }
+  .badge-error {
+    @apply bg-rose-500/15 text-rose-300 ring-1 ring-inset ring-rose-500/30;
+  }
+  .badge-muted {
+    @apply bg-slate-700/40 text-slate-400 ring-1 ring-inset ring-slate-600/40;
+  }
+
+  /* Status dot next to a tunnel name. */
+  .status-dot {
+    @apply inline-block h-3 w-3 shrink-0 rounded-full bg-slate-600;
+  }
+  .status-dot-healthy {
+    @apply bg-emerald-500;
+  }
+  .status-dot-degraded {
+    @apply animate-pulse bg-amber-400;
+  }
+  .status-dot-down {
+    @apply animate-pulse bg-rose-500;
+  }
+  .status-dot-inactive {
+    @apply bg-slate-500;
+  }
+
+  /* Uptime heartbeat bar, one segment per time bucket. */
+  .beat {
+    @apply h-7 flex-1 rounded-sm bg-slate-700/40;
+  }
+  .beat-healthy {
+    @apply bg-emerald-500/80;
+  }
+  .beat-degraded {
+    @apply bg-amber-400/80;
+  }
+  .beat-down {
+    @apply bg-rose-500/80;
+  }
+  .beat-inactive {
+    @apply bg-slate-500/60;
+  }
+
+  .table-head {
+    @apply border-b border-slate-800 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400;
+  }
+  .table-cell {
+    @apply border-b border-slate-800/60 px-3 py-2 align-top text-sm text-slate-300;
+  }
+
+  .alert-error {
+    @apply rounded-lg bg-rose-500/10 px-4 py-3 text-sm text-rose-200 ring-1 ring-inset ring-rose-500/30;
+  }
+  .alert-warn {
+    @apply rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-200 ring-1 ring-inset ring-amber-500/30;
+  }
+  .alert-info {
+    @apply rounded-lg bg-slate-800/60 px-4 py-3 text-sm text-slate-300 ring-1 ring-inset ring-slate-700;
+  }
+
+  .mono {
+    @apply font-mono text-xs text-slate-400;
+  }
+}

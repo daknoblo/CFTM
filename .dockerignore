@@ -1,0 +1,35 @@
+# Build artifacts and local tooling
+/bin/
+/out/
+tailwindcss
+
+# Version control and CI
+.git
+.github
+.gitignore
+
+# Local data / runtime
+appdata/
+*.db
+*.db-*
+
+# Docs and deployment manifests (not needed in the image)
+docs/
+deploy/
+*.md
+
+# Scan reports
+*.sarif
+trivy-results.*
+
+# Secrets
+.env
+.env.*
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+
+# Node (only used if Tailwind is run via npm locally)
+node_modules/

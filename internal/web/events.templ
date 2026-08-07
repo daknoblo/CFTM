@@ -1,0 +1,45 @@
+package web
+
+templ EventsPage(l Layout, events []Event) {
+	@Page(l) {
+		@pageHeading("Events", "Status transitions, connector changes and probe results")
+		<div class="card">
+			@EventList(events)
+		</div>
+	}
+}
+
+// EventList is refreshed on its own so new entries appear without a reload.
+templ EventList(events []Event) {
+	<div id="event-list" hx-get="/partials/events" hx-trigger="every 15s" hx-swap="outerHTML">
+		@eventList(events)
+	</div>
+}
+
+templ eventList(events []Event) {
+	if len(events) == 0 {
+		<p class="text-sm text-slate-500">No events recorded yet.</p>
+	} else {
+		<ul class="divide-y divide-slate-800/60">
+			for _, e := range events {
+				<li class="flex flex-wrap items-start gap-x-3 gap-y-1 py-2 text-sm">
+					<span class="w-40 shrink-0 text-xs">
+						@timestamp(FormatTime(e.Timestamp), "—")
+					</span>
+					<span class={ eventBadgeClass(e) }>{ e.KindLabel }</span>
+					<span class="min-w-0 flex-1 text-slate-300">
+						if e.TunnelName != "" {
+							<span class="text-slate-100">{ e.TunnelName }</span>
+							<span class="text-slate-600"> · </span>
+						}
+						if e.Hostname != "" {
+							<span class="mono">{ e.Hostname }</span>
+							<span class="text-slate-600"> · </span>
+						}
+						{ e.Message }
+					</span>
+				</li>
+			}
+		</ul>
+	}
+}

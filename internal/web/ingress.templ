@@ -1,0 +1,100 @@
+package web
+
+import "fmt"
+
+templ IngressPageView(l Layout, p IngressPage) {
+	@Page(l) {
+		@pageHeading("Ingress", "Every public hostname served by a tunnel")
+		if p.ProbeEnabled && !p.ProbeToken {
+			<div class="alert-warn mb-6">
+				Probing runs without an Access service token, so protected hostnames only report
+				<span class="mono">access_challenge</span>. That confirms the Cloudflare edge is reachable
+				but says nothing about the origin.
+			</div>
+		}
+		<div class="card" data-filter-scope>
+			<div class="mb-4 flex flex-wrap items-center gap-3">
+				<input
+					type="search"
+					class="input w-72"
+					placeholder="Filter hostname, origin or tunnel"
+					data-filter-input
+					aria-label="Filter ingress rules"
+				/>
+				<span class="text-xs text-slate-500">
+					<span data-filter-count>{ fmt.Sprintf("%d", len(p.Rules)) }</span> of { fmt.Sprintf("%d", len(p.Rules)) } rules
+				</span>
+				if p.ProbeEnabled {
+					<form hx-post="/probe" hx-swap="none" class="ml-auto">
+						<button type="submit" class="btn-ghost">Probe now</button>
+					</form>
+				}
+			</div>
+			@ingressTable(p.Rules, true)
+		</div>
+	}
+}
+
+templ ingressTable(rules []Ingress, showTunnel bool) {
+	if len(rules) == 0 {
+		<p class="text-sm text-slate-500">No ingress rules recorded yet.</p>
+	} else {
+		<div class="overflow-x-auto">
+			<table class="w-full">
+				<thead>
+					<tr>
+						if showTunnel {
+							<th class="table-head">Tunnel</th>
+						}
+						<th class="table-head">Hostname</th>
+						<th class="table-head">Origin</th>
+						<th class="table-head">Access</th>
+						<th class="table-head">Probe</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, rule := range rules {
+						<tr data-filter-row={ FilterKey(rule.Hostname, rule.Service, rule.TunnelName) }>
+							if showTunnel {
+								<td class="table-cell">{ rule.TunnelName }</td>
+							}
+							<td class="table-cell">
+								if rule.Hostname == "" {
+									<span class="text-slate-500">catch-all</span>
+								} else {
+									<span class="text-slate-100">{ rule.Hostname }</span>
+									if rule.Path != "" {
+										<span class="mono ml-1">{ rule.Path }</span>
+									}
+								}
+							</td>
+							<td class="table-cell">
+								<span class="mono">{ rule.Service }</span>
+								if rule.NoTLSVerify {
+									<span class="badge badge-warn ml-1">noTLSVerify</span>
+								}
+							</td>
+							<td class="table-cell">
+								if rule.Probeable {
+									<span class={ accessBadgeClass(rule.Access) }>{ accessLabel(rule.Access) }</span>
+								} else {
+									<span class="text-slate-600">—</span>
+								}
+							</td>
+							<td class="table-cell">
+								if !rule.Probeable {
+									<span class="badge badge-muted">{ rule.Kind }</span>
+								} else {
+									<span class={ ProbeBadgeClass(rule.Probe.Class) }>{ probeLabel(rule.Probe) }</span>
+									if rule.Probe.Known && rule.Probe.LatencyMS > 0 {
+										<span class="mono ml-1">{ fmt.Sprintf("%dms", rule.Probe.LatencyMS) }</span>
+									}
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
