@@ -1,7 +1,7 @@
 # CFTM — Cloudflare Tunnel Monitor
 
 [![CI](https://github.com/daknoblo/CFTM/actions/workflows/ci.yml/badge.svg)](https://github.com/daknoblo/CFTM/actions/workflows/ci.yml)
-[![Release](https://github.com/daknoblo/CFTM/actions/workflows/release.yml/badge.svg)](https://github.com/daknoblo/CFTM/actions/workflows/release.yml)
+[![Release](https://img.shields.io/github/v/release/daknoblo/CFTM)](https://github.com/daknoblo/CFTM/releases/latest)
 [![Go](https://img.shields.io/github/go-mod/go-version/daknoblo/CFTM)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![GHCR](https://img.shields.io/badge/ghcr.io-cftm-blue?logo=docker)](https://github.com/daknoblo/CFTM/pkgs/container/cftm)
