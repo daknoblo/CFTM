@@ -23,6 +23,8 @@ type Finding struct {
 	Severity string `json:"severity"`
 	Message  string `json:"message"`
 	Hostname string `json:"hostname,omitempty"`
+	// MutedAt is set only on the muted list of a tunnel page.
+	MutedAt time.Time `json:"mutedAt,omitzero"`
 }
 
 // Heartbeat is one bucket of the uptime bar.
@@ -37,6 +39,9 @@ type Uptime struct {
 	Percent  float64       `json:"percent"`
 	Observed bool          `json:"observed"`
 	Window   time.Duration `json:"window"`
+	// Nominal is the requested window; a shorter Window means the tunnel has
+	// not been monitored for that long yet.
+	Nominal time.Duration `json:"nominal"`
 }
 
 // Connector is a running cloudflared instance.
@@ -111,7 +116,9 @@ type TunnelCard struct {
 
 // TunnelDetail is the full view of a single tunnel.
 type TunnelDetail struct {
-	Card        TunnelCard   `json:"card"`
+	Card TunnelCard `json:"card"`
+	// Ignored are the findings muted for this tunnel, offered back for undo.
+	Ignored     []Finding    `json:"ignored"`
 	TunType     string       `json:"tunType"`
 	ConfigSrc   string       `json:"configSrc"`
 	Remote      bool         `json:"remoteConfig"`
@@ -219,14 +226,20 @@ type ServiceToken struct {
 type AboutPage struct {
 	Version      string
 	Commit       string
-	Date         string
+	BuiltAt      time.Time
 	GoVersion    string
 	AccountID    string
 	PollInterval time.Duration
-	ProbeEnabled bool
-	ProbeToken   bool
-	AuditEnabled bool
 	Retention    int
+	Features     []FeatureState
+}
+
+// FeatureState is one optional capability and why it is or is not running.
+type FeatureState struct {
+	Name string
+	// State is one of "on", "off" or "unconfigured".
+	State  string
+	Detail string
 }
 
 // LogPage renders the in-memory log buffer.
@@ -321,6 +334,27 @@ func FormatPercent(u Uptime) string {
 		return "n/a"
 	}
 	return fmt.Sprintf("%.2f%%", u.Percent)
+}
+
+// UptimeNote explains a figure that covers less than its window, which is the
+// normal state for the first day after a fresh start.
+func UptimeNote(u Uptime) string {
+	if !u.Observed {
+		return "no status recorded yet"
+	}
+	if u.Nominal > 0 && u.Window > 0 && u.Window < u.Nominal-time.Minute {
+		return "observed " + FormatWindow(u.Window) + " so far"
+	}
+	return ""
+}
+
+// ShortVersion trims a development version down to something that fits the
+// header; release builds are already short.
+func ShortVersion(v string) string {
+	if len(v) <= 24 {
+		return v
+	}
+	return v[:21] + "…"
 }
 
 // FormatTime renders a timestamp in RFC 3339 so the browser can localize it.

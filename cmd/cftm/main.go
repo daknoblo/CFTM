@@ -90,6 +90,7 @@ func run() error {
 		ProbeEnabled:   cfg.ProbeEnabled,
 		ProbeToken:     cfg.HasAccessServiceToken(),
 		AuditEnabled:   cfg.AccessAuditEnabled,
+		ReleaseCheck:   cfg.ReleaseCheckEnabled,
 		ExpectedPublic: toSet(cfg.ExpectedPublic),
 	}, logger)
 	if err != nil {

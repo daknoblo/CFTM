@@ -2,11 +2,14 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/daknoblo/CFTM/internal/store"
 	"github.com/daknoblo/CFTM/internal/version"
 	"github.com/daknoblo/CFTM/internal/web"
 )
@@ -99,19 +102,54 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
 	info := version.Get()
+	builtAt, _ := time.Parse(time.RFC3339, info.Date)
 	page := web.AboutPage{
 		Version:      info.Version,
 		Commit:       info.Commit,
-		Date:         info.Date,
+		BuiltAt:      builtAt,
 		GoVersion:    info.GoVer,
 		AccountID:    s.cfg.AccountID,
 		PollInterval: s.cfg.PollInterval,
-		ProbeEnabled: s.cfg.ProbeEnabled,
-		ProbeToken:   s.cfg.ProbeToken,
-		AuditEnabled: s.cfg.AuditEnabled,
 		Retention:    s.cfg.RetentionDays,
+		Features:     s.features(),
 	}
 	s.render(w, r, web.AboutPageView(s.layout(r, "About"), page))
+}
+
+// features explains which optional capabilities are running, and for the ones
+// that are not, whether that is a choice or a missing credential.
+func (s *Server) features() []web.FeatureState {
+	probe := web.FeatureState{Name: "End-to-end probing", State: "off", Detail: "CFTM_PROBE_ENABLED is false"}
+	switch {
+	case s.cfg.ProbeEnabled && s.cfg.ProbeToken:
+		probe.State, probe.Detail = "on", "Requests carry the Access service token"
+	case s.cfg.ProbeEnabled:
+		probe.State, probe.Detail = "unconfigured", "No Access service token, so guarded hostnames only reach the edge"
+	}
+
+	audit := web.FeatureState{Name: "Access audit", State: "off", Detail: "CFTM_ACCESS_AUDIT_ENABLED is false"}
+	if s.cfg.AuditEnabled {
+		audit.State, audit.Detail = "on", "Access applications and service tokens are inventoried"
+	}
+
+	release := web.FeatureState{Name: "cloudflared version check", State: "off", Detail: "CFTM_RELEASE_CHECK_ENABLED is false"}
+	if s.cfg.ReleaseCheck {
+		release.State, release.Detail = "on", "Compares connectors against the latest GitHub release"
+	}
+
+	public := web.FeatureState{Name: "Declared public hostnames", State: "off", Detail: "CFTM_EXPECTED_PUBLIC is empty"}
+	if n := len(s.cfg.ExpectedPublic); n > 0 {
+		public.State = "on"
+		public.Detail = fmt.Sprintf("%d hostname(s) exempt from the coverage check", n)
+	}
+
+	return []web.FeatureState{
+		{Name: "Tunnel monitoring", State: "on", Detail: "Always on; uptime comes from the Cloudflare tunnel status"},
+		audit,
+		probe,
+		release,
+		public,
+	}
 }
 
 func (s *Server) handlePartialTunnels(w http.ResponseWriter, r *http.Request) {
@@ -182,6 +220,53 @@ func (s *Server) handleProbe(w http.ResponseWriter, r *http.Request) {
 func tooSoon(w http.ResponseWriter, wait time.Duration) {
 	w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
 	http.Error(w, "a round was triggered moments ago", http.StatusTooManyRequests)
+}
+
+// handleIgnoreFinding mutes one finding and re-renders the tunnel page.
+func (s *Server) handleIgnoreFinding(w http.ResponseWriter, r *http.Request) {
+	ref, ok := findingRef(r)
+	if !ok {
+		http.Error(w, "a finding code is required", http.StatusBadRequest)
+		return
+	}
+	if err := s.store.IgnoreFinding(r.Context(), ref, r.FormValue("message"), time.Now()); err != nil {
+		s.serverError(w, r, "muting finding", err)
+		return
+	}
+	s.redirectToTunnel(w, r, ref.TunnelID)
+}
+
+// handleRestoreFinding un-mutes one finding and re-renders the tunnel page.
+func (s *Server) handleRestoreFinding(w http.ResponseWriter, r *http.Request) {
+	ref, ok := findingRef(r)
+	if !ok {
+		http.Error(w, "a finding code is required", http.StatusBadRequest)
+		return
+	}
+	if err := s.store.RestoreFinding(r.Context(), ref); err != nil {
+		s.serverError(w, r, "restoring finding", err)
+		return
+	}
+	s.redirectToTunnel(w, r, ref.TunnelID)
+}
+
+// findingRef reads a finding identity from the submitted form.
+func findingRef(r *http.Request) (store.FindingRef, bool) {
+	ref := store.FindingRef{
+		Code:     r.FormValue("code"),
+		TunnelID: r.FormValue("tunnel"),
+		Hostname: r.FormValue("hostname"),
+	}
+	return ref, ref.Valid()
+}
+
+// redirectToTunnel sends the browser back to the page the form was posted from.
+func (s *Server) redirectToTunnel(w http.ResponseWriter, r *http.Request, tunnelID string) {
+	target := "/"
+	if tunnelID != "" {
+		target = "/tunnels/" + url.PathEscape(tunnelID)
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 // detach keeps a manually triggered round running when the browser navigates

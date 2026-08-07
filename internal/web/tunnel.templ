@@ -13,7 +13,7 @@ templ TunnelPage(l Layout, d TunnelDetail) {
 		<div class="mono mb-6">{ d.Card.ID }</div>
 		@tunnelUptimes(d)
 		@tunnelFacts(d)
-		@tunnelFindings(d.Card.Findings)
+		@tunnelFindings(d)
 		@tunnelConnectors(d.Connectors)
 		@tunnelConnections(d.Connections)
 		@tunnelIngress(d.Ingress)
@@ -28,14 +28,20 @@ templ tunnelUptimes(d TunnelDetail) {
 				<div>
 					<div class="text-xs uppercase tracking-wide text-slate-500">{ u.Label }</div>
 					<div class="text-xl font-semibold text-slate-100">{ FormatPercent(u) }</div>
+					if note := UptimeNote(u); note != "" {
+						<div class="text-xs text-slate-500">{ note }</div>
+					}
 				</div>
 			}
 		</div>
-		<div class="flex gap-0.5" title="Availability over the last 24 hours">
+		<div class="flex gap-0.5" title="Availability over the last 24 hours, half an hour per segment">
 			for _, beat := range d.Card.Heartbeats {
 				<span class={ BeatClass(beat.Status) } title={ beat.Label }></span>
 			}
 		</div>
+		<p class="mt-2 text-xs text-slate-500">
+			One segment per half hour. Empty segments are time before monitoring started, not downtime.
+		</p>
 	</div>
 }
 
@@ -77,25 +83,64 @@ templ factTime(label string, value string) {
 	</div>
 }
 
-templ tunnelFindings(findings []Finding) {
-	if len(findings) > 0 {
+templ tunnelFindings(d TunnelDetail) {
+	if len(d.Card.Findings) > 0 || len(d.Ignored) > 0 {
 		<div class="card mb-6">
 			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Findings</h2>
-			<ul class="space-y-2">
-				for _, f := range findings {
-					<li class="flex items-start gap-2 text-sm text-slate-300">
-						<span class={ BadgeClass(f.Severity) }>{ f.Severity }</span>
-						<span>
-							if f.Hostname != "" {
-								<span class="mono mr-1">{ f.Hostname }</span>
-							}
-							{ f.Message }
-						</span>
-					</li>
-				}
-			</ul>
+			if len(d.Card.Findings) == 0 {
+				<p class="text-sm text-slate-500">Nothing open. Everything this tunnel raised is muted below.</p>
+			} else {
+				<ul class="space-y-2">
+					for _, f := range d.Card.Findings {
+						<li class="flex flex-wrap items-start gap-x-3 gap-y-1 text-sm text-slate-300">
+							<span class={ BadgeClass(f.Severity) }>{ f.Severity }</span>
+							<span class="min-w-0 flex-1 break-words">
+								if f.Hostname != "" {
+									<span class="mono mr-1">{ f.Hostname }</span>
+								}
+								{ f.Message }
+							</span>
+							@findingButton("/findings/ignore", d.Card.ID, f, "Mute")
+						</li>
+					}
+				</ul>
+			}
+			if len(d.Ignored) > 0 {
+				<h3 class="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-slate-500">
+					Muted ({ fmt.Sprintf("%d", len(d.Ignored)) })
+				</h3>
+				<ul class="space-y-2">
+					for _, f := range d.Ignored {
+						<li class="flex flex-wrap items-start gap-x-3 gap-y-1 text-sm text-slate-500">
+							<span class="badge badge-muted">{ f.Code }</span>
+							<span class="min-w-0 flex-1 break-words">
+								if f.Hostname != "" {
+									<span class="mono mr-1">{ f.Hostname }</span>
+								}
+								{ f.Message }
+							</span>
+							<span class="shrink-0 text-xs">
+								muted @timestamp(FormatTime(f.MutedAt), "—")
+							</span>
+							@findingButton("/findings/restore", d.Card.ID, f, "Restore")
+						</li>
+					}
+				</ul>
+			}
 		</div>
 	}
+}
+
+// findingButton posts one finding identity; a plain form keeps it working
+// without JavaScript and inherits the same-origin CSRF check.
+templ findingButton(action string, tunnelID string, f Finding, label string) {
+	<form method="post" action={ templ.SafeURL(action) } class="shrink-0">
+		<input type="hidden" name="code" value={ f.Code }/>
+		<input type="hidden" name="tunnel" value={ tunnelID }/>
+		<input type="hidden" name="hostname" value={ f.Hostname }/>
+		<input type="hidden" name="message" value={ f.Message }/>
+		<button type="submit" class="btn-ghost">{ label }</button>
+	</form>
 }
 
 templ tunnelConnectors(connectors []Connector) {

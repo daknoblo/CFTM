@@ -92,10 +92,27 @@ func logLevelClass(level string) string {
 	}
 }
 
-// enabledLabel renders a boolean setting for the About page.
-func enabledLabel(value bool) string {
-	if value {
-		return "enabled"
+// featureLabel names a feature state for the About page.
+func featureLabel(state string) string {
+	switch state {
+	case "on":
+		return "active"
+	case "unconfigured":
+		return "incomplete"
+	default:
+		return "off"
 	}
-	return "disabled"
+}
+
+// featureBadgeClass colors a feature state, calling out the ones that are
+// switched on but missing a credential.
+func featureBadgeClass(state string) string {
+	switch state {
+	case "on":
+		return "badge badge-ok"
+	case "unconfigured":
+		return "badge badge-warn"
+	default:
+		return "badge badge-muted"
+	}
 }

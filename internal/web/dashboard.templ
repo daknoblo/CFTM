@@ -27,7 +27,7 @@ templ PollStatusBar(p PollStatus) {
 			</div>
 		}
 		<div class="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-400">
-			<span>
+			<span class="inline-flex items-center gap-1">
 				Last poll
 				@timestamp(FormatTime(p.LastRun), "never")
 				if p.DurationMS > 0 {
@@ -35,7 +35,7 @@ templ PollStatusBar(p PollStatus) {
 				}
 			</span>
 			if p.RateKnown {
-				<span>
+				<span class="inline-flex items-center gap-1">
 					API budget
 					<span class="text-slate-300">{ fmt.Sprintf("%d", p.RateRemaining) }</span>
 					if p.RateQuota > 0 {
@@ -44,7 +44,7 @@ templ PollStatusBar(p PollStatus) {
 					<span class="text-slate-500">remaining</span>
 				</span>
 			}
-			<span>
+			<span class="inline-flex items-center gap-1">
 				Probing
 				if !p.ProbeEnabled {
 					<span class="badge badge-muted">off</span>
@@ -73,7 +73,7 @@ templ TotalsRow(t Totals) {
 }
 
 templ statTile(label string, value string, tone string) {
-	<div class="card p-4">
+	<div class="card p-4 text-center">
 		<div class="text-xs uppercase tracking-wide text-slate-500">{ label }</div>
 		if tone == "" {
 			<div class="mt-1 text-xl font-semibold text-slate-100">{ value }</div>
@@ -122,9 +122,12 @@ templ tunnelCard(c TunnelCard) {
 			<div class="text-right">
 				<div class="text-lg font-semibold text-slate-100">{ FormatPercent(c.Uptime24h) }</div>
 				<div class="text-xs text-slate-500">{ c.Uptime24h.Label }</div>
+				if note := UptimeNote(c.Uptime24h); note != "" {
+					<div class="text-xs text-slate-600">{ note }</div>
+				}
 			</div>
 		</div>
-		<div class="mt-4 flex gap-0.5" title="Availability over the last 24 hours">
+		<div class="mt-4 flex gap-0.5" title="Availability over the last 24 hours, half an hour per segment">
 			for _, beat := range c.Heartbeats {
 				<span class={ BeatClass(beat.Status) } title={ beat.Label }></span>
 			}

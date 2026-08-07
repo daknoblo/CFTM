@@ -34,26 +34,53 @@ templ AboutPageView(l Layout, p AboutPage) {
 		@pageHeading("About", "Build and runtime information")
 		<div class="card mb-6">
 			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Build</h2>
-			<dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-				@fact("Version", p.Version)
-				@fact("Commit", p.Commit)
-				@fact("Built", p.Date)
-				@fact("Go", p.GoVersion)
+			<dl class="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+				@factWide("Version", p.Version)
+				@factWide("Commit", p.Commit)
+				<div>
+					<dt class="text-xs uppercase tracking-wide text-slate-500">Built</dt>
+					<dd>
+						@timestamp(FormatTime(p.BuiltAt), "unknown")
+					</dd>
+				</div>
+				@factWide("Go", p.GoVersion)
 			</dl>
+		</div>
+		<div class="card mb-6">
+			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Features</h2>
+			<ul class="space-y-2 text-sm">
+				for _, f := range p.Features {
+					<li class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+						<span class={ featureBadgeClass(f.State) }>{ featureLabel(f.State) }</span>
+						<span class="text-slate-200">{ f.Name }</span>
+						<span class="min-w-0 flex-1 break-words text-xs text-slate-500">{ f.Detail }</span>
+					</li>
+				}
+			</ul>
 		</div>
 		<div class="card">
 			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Configuration</h2>
-			<dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-				@fact("Cloudflare account", p.AccountID)
-				@fact("Poll interval", p.PollInterval.String())
-				@fact("Retention", fmt.Sprintf("%d days", p.Retention))
-				@fact("Access audit", enabledLabel(p.AuditEnabled))
-				@fact("Probing", enabledLabel(p.ProbeEnabled))
-				@fact("Access service token", enabledLabel(p.ProbeToken))
+			<dl class="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+				@factWide("Cloudflare account", p.AccountID)
+				@factWide("Poll interval", p.PollInterval.String())
+				@factWide("Retention", fmt.Sprintf("%d days", p.Retention))
 			</dl>
 			<p class="mt-4 text-xs text-slate-500">
 				Secrets are read from the environment only and are never rendered here or exposed by the API.
 			</p>
 		</div>
 	}
+}
+
+// factWide wraps long values such as a commit hash instead of overflowing the
+// neighbouring column.
+templ factWide(label string, value string) {
+	<div class="min-w-0">
+		<dt class="text-xs uppercase tracking-wide text-slate-500">{ label }</dt>
+		if value == "" {
+			<dd class="text-slate-500">—</dd>
+		} else {
+			<dd class="break-all font-mono text-xs text-slate-200">{ value }</dd>
+		}
+	</div>
 }

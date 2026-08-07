@@ -28,6 +28,7 @@ type Config struct {
 	ProbeEnabled  bool
 	ProbeToken    bool
 	AuditEnabled  bool
+	ReleaseCheck  bool
 
 	// ExpectedPublic names hostnames that are published without Access on
 	// purpose, keyed lowercase.
@@ -96,6 +97,8 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("POST /refresh", s.handleRefresh)
 	mux.HandleFunc("POST /probe", s.handleProbe)
+	mux.HandleFunc("POST /findings/ignore", s.handleIgnoreFinding)
+	mux.HandleFunc("POST /findings/restore", s.handleRestoreFinding)
 
 	mux.HandleFunc("GET /api/tunnels", s.handleAPITunnels)
 	mux.HandleFunc("GET /api/tunnels/{id}", s.handleAPITunnel)

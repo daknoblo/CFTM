@@ -36,7 +36,7 @@ templ nav(l Layout) {
 				@navLink(l, "/logs", "Logs")
 				@navLink(l, "/about", "About")
 			</nav>
-			<div class="ml-auto text-xs text-slate-500">{ l.Version }</div>
+			<div class="ml-auto truncate text-xs text-slate-500" title={ l.Version }>{ ShortVersion(l.Version) }</div>
 		</div>
 	</header>
 }

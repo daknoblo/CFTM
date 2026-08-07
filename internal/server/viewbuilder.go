@@ -38,6 +38,12 @@ type snapshot struct {
 	probes         map[string]store.ProbeResult
 	latestRelease  string
 	auditAvailable bool
+
+	// ignored are the findings the operator muted in the UI.
+	ignored map[store.FindingRef]bool
+	// expectedPublic merges the configured exceptions with the hostnames whose
+	// coverage finding was muted, so both routes reach the same conclusion.
+	expectedPublic map[string]bool
 }
 
 func (s *Server) loadSnapshot(ctx context.Context) (snapshot, error) {
@@ -87,11 +93,30 @@ func (s *Server) loadSnapshot(ctx context.Context) (snapshot, error) {
 	if snap.probes, err = s.store.LatestProbeResults(ctx); err != nil {
 		return snap, fmt.Errorf("load probe results: %w", err)
 	}
+	if snap.ignored, err = s.store.IgnoredFindingSet(ctx); err != nil {
+		return snap, fmt.Errorf("load ignored findings: %w", err)
+	}
+	snap.expectedPublic = s.effectivePublic(snap.ignored)
 
 	snap.latestRelease = s.collector.LatestRelease(ctx)
 	snap.auditAvailable = !s.collector.AccessAuditAt(ctx).IsZero()
 
 	return snap, nil
+}
+
+// effectivePublic treats a muted coverage finding like a configured exception:
+// the hostname stays monitored but stops counting as a gap.
+func (s *Server) effectivePublic(ignored map[store.FindingRef]bool) map[string]bool {
+	out := make(map[string]bool, len(s.cfg.ExpectedPublic)+len(ignored))
+	for host := range s.cfg.ExpectedPublic {
+		out[host] = true
+	}
+	for ref := range ignored {
+		if ref.Code == collector.FindingAccessUnprotected && ref.Hostname != "" {
+			out[ref.Hostname] = true
+		}
+	}
+	return out
 }
 
 // findingsFor evaluates the derived health signals of one tunnel.
@@ -109,15 +134,16 @@ func (s *Server) findingsFor(ctx context.Context, snap snapshot, t store.Tunnel)
 		AccessApps:           snap.apps,
 		ServiceTokens:        snap.tokens,
 		AccessAuditAvailable: snap.auditAvailable,
-		ExpectedPublic:       s.cfg.ExpectedPublic,
+		ExpectedPublic:       snap.expectedPublic,
 		LatestRelease:        snap.latestRelease,
 		RecentChanges:        len(recent),
 		Now:                  snap.now,
 	})
 }
 
+// buildCard renders one tunnel with the muted findings left out.
 func (s *Server) buildCard(ctx context.Context, snap snapshot, t store.Tunnel) web.TunnelCard {
-	findings := s.findingsFor(ctx, snap, t)
+	visible := visibleFindings(s.findingsFor(ctx, snap, t), t.ID, snap.ignored)
 
 	uptime, err := s.store.UptimeFor(ctx, t.ID, 24*time.Hour, snap.now)
 	if err != nil {
@@ -128,17 +154,62 @@ func (s *Server) buildCard(ctx context.Context, snap snapshot, t store.Tunnel) w
 		ID:           t.ID,
 		Name:         t.Name,
 		Status:       t.Status,
-		Severity:     string(collector.WorstSeverity(findings)),
+		Severity:     string(collector.WorstSeverity(visible)),
 		Connectors:   len(snap.connectors[t.ID]),
 		Connections:  len(snap.connections[t.ID]),
 		Colos:        colosOf(snap.connections[t.ID]),
 		Versions:     versionsOf(snap.connectors[t.ID]),
 		IngressCount: countHostnames(snap.ingress[t.ID]),
-		Findings:     toWebFindings(findings),
-		Uptime24h:    toWebUptime("24 hours", uptime),
+		Findings:     toWebFindings(visible),
+		Uptime24h:    toWebUptime("24 hours", 24*time.Hour, uptime),
 		Heartbeats:   s.heartbeats(ctx, t.ID, snap.now),
 		LastSeen:     t.LastSeen,
 	}
+}
+
+// visibleFindings drops the findings the operator muted.
+func visibleFindings(findings []collector.Finding, tunnelID string, ignored map[store.FindingRef]bool) []collector.Finding {
+	if len(ignored) == 0 {
+		return findings
+	}
+	out := make([]collector.Finding, 0, len(findings))
+	for _, f := range findings {
+		ref := store.FindingRef{
+			Code:     f.Code,
+			TunnelID: tunnelID,
+			Hostname: strings.ToLower(f.Hostname),
+		}
+		if !ignored[ref] {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// mutedFor lists what is muted for one tunnel. It reads the stored rows rather
+// than the live evaluation, so a finding whose cause has gone away can still be
+// un-muted.
+func (s *Server) mutedFor(ctx context.Context, tunnelID string) []web.Finding {
+	ignored, err := s.store.IgnoredFindings(ctx)
+	if err != nil {
+		s.log.Warn("reading muted findings failed", "tunnel", tunnelID, "err", err)
+		return nil
+	}
+
+	var out []web.Finding
+	for _, f := range ignored {
+		if f.TunnelID != tunnelID {
+			continue
+		}
+		out = append(out, web.Finding{
+			Code:     f.Code,
+			Severity: string(collector.SeverityInfo),
+			Message:  f.Message,
+			Hostname: f.Hostname,
+			MutedAt:  f.CreatedAt,
+		})
+	}
+	return out
 }
 
 // Dashboard assembles the index page model.
@@ -196,8 +267,10 @@ func (s *Server) TunnelDetail(ctx context.Context, id string) (web.TunnelDetail,
 		return web.TunnelDetail{}, false, nil
 	}
 
+	card := s.buildCard(ctx, snap, tunnel)
 	detail := web.TunnelDetail{
-		Card:       s.buildCard(ctx, snap, tunnel),
+		Card:       card,
+		Ignored:    s.mutedFor(ctx, id),
 		TunType:    tunnel.TunType,
 		ConfigSrc:  tunnel.ConfigSrc,
 		Remote:     tunnel.RemoteConfig,
@@ -240,7 +313,7 @@ func (s *Server) TunnelDetail(ctx context.Context, id string) (web.TunnelDetail,
 			s.log.Warn("computing uptime failed", "tunnel", id, "window", w.Label, "err", err)
 			continue
 		}
-		detail.Uptimes = append(detail.Uptimes, toWebUptime(w.Label, up))
+		detail.Uptimes = append(detail.Uptimes, toWebUptime(w.Label, w.Window, up))
 	}
 
 	events, err := s.store.Events(ctx, 200)
@@ -382,7 +455,7 @@ func (s *Server) unprotected(snap snapshot) (unexpected, expected []store.Ingres
 			if protected[host] {
 				continue
 			}
-			if s.cfg.ExpectedPublic[host] {
+			if snap.expectedPublic[host] {
 				expected = append(expected, r)
 				continue
 			}
@@ -527,12 +600,13 @@ func toWebFindings(findings []collector.Finding) []web.Finding {
 	return out
 }
 
-func toWebUptime(label string, u store.Uptime) web.Uptime {
+func toWebUptime(label string, nominal time.Duration, u store.Uptime) web.Uptime {
 	return web.Uptime{
 		Label:    label,
 		Percent:  u.Percent(),
 		Observed: u.Observed,
 		Window:   u.Window,
+		Nominal:  nominal,
 	}
 }
 
