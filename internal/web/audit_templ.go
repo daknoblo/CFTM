@@ -57,7 +57,7 @@ func AuditPageView(l Layout, p AuditPage) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"mb-6 text-xs text-slate-500\">Last audit")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"mb-6 inline-flex items-center gap-1 text-xs text-slate-500\">Last audit")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
