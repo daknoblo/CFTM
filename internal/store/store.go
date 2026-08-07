@@ -36,7 +36,10 @@ func Open(path string) (*Store, error) {
 		"?_pragma=busy_timeout(5000)" +
 		"&_pragma=journal_mode(WAL)" +
 		"&_pragma=synchronous(NORMAL)" +
-		"&_pragma=foreign_keys(1)"
+		"&_pragma=foreign_keys(1)" +
+		// Keeps sorts and temp tables off /tmp, which a read-only container
+		// filesystem does not provide.
+		"&_pragma=temp_store(MEMORY)"
 
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {

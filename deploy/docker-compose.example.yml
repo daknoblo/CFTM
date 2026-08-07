@@ -22,9 +22,9 @@ services:
       - TZ=Europe/Berlin
     volumes:
       - cftm-data:/appdata
+    # Runtime hardening; the image cannot set any of this for you. The binary
+    # writes only to /appdata, so nothing else has to be writable.
     read_only: true
-    tmpfs:
-      - /tmp
     security_opt:
       - "no-new-privileges:true"
     cap_drop:
