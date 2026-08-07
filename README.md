@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/daknoblo/CFTM/actions/workflows/ci.yml/badge.svg)](https://github.com/daknoblo/CFTM/actions/workflows/ci.yml)
 [![Release](https://github.com/daknoblo/CFTM/actions/workflows/release.yml/badge.svg)](https://github.com/daknoblo/CFTM/actions/workflows/release.yml)
+[![CodeQL](https://github.com/daknoblo/CFTM/actions/workflows/codeql.yml/badge.svg)](https://github.com/daknoblo/CFTM/actions/workflows/codeql.yml)
 [![Go](https://img.shields.io/badge/go-1.26-00ADD8)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
