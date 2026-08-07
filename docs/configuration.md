@@ -4,6 +4,15 @@ Every setting is read from the environment at start-up. Secrets are never read
 from a file, never written to the database and never rendered in the UI or the
 JSON API.
 
+> A `.env` file next to `docker-compose.yml` is only used by Compose to
+> substitute `${...}`. A variable that is not also listed under `environment:`
+> in the compose file never reaches the container. Check what actually arrived
+> with:
+>
+> ```sh
+> docker inspect cftm --format '{{range .Config.Env}}{{println .}}{{end}}' | grep CFTM_
+> ```
+
 ## Required
 
 | Variable | Description |

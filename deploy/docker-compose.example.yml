@@ -17,10 +17,17 @@ services:
     # port; if the host port is taken, change the middle one only.
     ports:
       - "127.0.0.1:8080:8080"
+    # Compose reads .env only to substitute the ${...} below. A variable that is
+    # not listed here never reaches the container.
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
       - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
       - TZ=Europe/Berlin
+      # End-to-end probing. Needs the Access service token to say anything about
+      # the origin rather than just the Cloudflare edge.
+      - CFTM_PROBE_ENABLED=${CFTM_PROBE_ENABLED:-false}
+      - CFTM_ACCESS_CLIENT_ID=${CFTM_ACCESS_CLIENT_ID:-}
+      - CFTM_ACCESS_CLIENT_SECRET=${CFTM_ACCESS_CLIENT_SECRET:-}
     volumes:
       - cftm-data:/appdata
     # Runtime hardening; the image cannot set any of this for you. The binary

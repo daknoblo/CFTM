@@ -17,6 +17,8 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     environment:
+      # Compose reads .env only to substitute the ${...} below. A variable that is
+      # not listed here never reaches the container.
       # --- Required ----------------------------------------------------------
       # A dedicated read-only token, see docs/cloudflare-token.md.
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
