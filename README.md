@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/daknoblo/CFTM/actions/workflows/ci.yml/badge.svg)](https://github.com/daknoblo/CFTM/actions/workflows/ci.yml)
 [![Release](https://github.com/daknoblo/CFTM/actions/workflows/release.yml/badge.svg)](https://github.com/daknoblo/CFTM/actions/workflows/release.yml)
-[![CodeQL](https://github.com/daknoblo/CFTM/actions/workflows/codeql.yml/badge.svg)](https://github.com/daknoblo/CFTM/actions/workflows/codeql.yml)
-[![Go](https://img.shields.io/badge/go-1.26-00ADD8)](go.mod)
+[![Go](https://img.shields.io/github/go-mod/go-version/daknoblo/CFTM)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![GHCR](https://img.shields.io/badge/ghcr.io-cftm-blue?logo=docker)](https://github.com/daknoblo/CFTM/pkgs/container/cftm)
 
 A self-hosted dashboard for Cloudflare Tunnels. It polls the Cloudflare API,
 keeps its own history in SQLite and shows what the Zero Trust dashboard does
