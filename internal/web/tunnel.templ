@@ -119,8 +119,9 @@ templ tunnelFindings(d TunnelDetail) {
 								}
 								{ f.Message }
 							</span>
-							<span class="shrink-0 text-xs">
-								muted @timestamp(FormatTime(f.MutedAt), "—")
+							<span class="inline-flex shrink-0 items-center gap-1 text-xs">
+								muted
+								@timestamp(FormatTime(f.MutedAt), "—")
 							</span>
 							@findingButton("/findings/restore", d.Card.ID, f, "Restore")
 						</li>

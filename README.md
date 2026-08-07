@@ -11,6 +11,32 @@ keeps its own history in SQLite and shows what the Zero Trust dashboard does
 not: uptime over time, connector detail, configuration drift and which public
 hostnames are actually protected by Access.
 
+**[Live demo →](https://daknoblo.github.io/CFTM/)** — the real UI rendered from
+fabricated data, no account needed. Buttons are inert and the polling is off,
+everything else is exactly what the container serves.
+
+[![Dashboard](docs/screenshots/dashboard.png)](https://daknoblo.github.io/CFTM/)
+
+<details>
+<summary>More screenshots</summary>
+
+**Tunnel detail** — uptime windows, connectors, edge connections and findings
+that can be muted per hostname.
+
+![Tunnel detail](docs/screenshots/tunnel.png)
+
+**Ingress** — every public hostname with its origin, Access state and the
+latest probe result.
+
+![Ingress](docs/screenshots/ingress.png)
+
+**Access audit** — what is protected, by which policy, and when the service
+tokens expire.
+
+![Access audit](docs/screenshots/audit.png)
+
+</details>
+
 ## What it shows
 
 - **Tunnel health** — status (`healthy` / `degraded` / `down` / `inactive`),

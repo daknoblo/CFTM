@@ -900,7 +900,7 @@ func cardProbes(p Probes) templ.Component {
 			templ_7745c5c3_Var44 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<div><dt class=\"text-xs uppercase tracking-wide text-slate-500\">Probes</dt><dd class=\"truncate\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<div><dt class=\"text-xs uppercase tracking-wide text-slate-500\">Probes</dt><dd class=\"flex flex-wrap items-center gap-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -940,7 +940,7 @@ func cardProbes(p Probes) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if p.Worst != "" {
-			var templ_7745c5c3_Var48 = []any{ProbeBadgeClass(p.Worst), "ml-1"}
+			var templ_7745c5c3_Var48 = []any{ProbeBadgeClass(p.Worst)}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var48...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -965,7 +965,7 @@ func cardProbes(p Probes) templ.Component {
 			var templ_7745c5c3_Var50 string
 			templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(p.Worst)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/dashboard.templ`, Line: 177, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/dashboard.templ`, Line: 177, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 			if templ_7745c5c3_Err != nil {

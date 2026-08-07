@@ -79,3 +79,22 @@ page pick the finding up automatically.
 Push to `main` to publish `:latest`. Tag `vX.Y.Z` to publish the semver tags.
 There is no changelog automation; commit messages loosely follow Conventional
 Commits.
+
+## Demo site and screenshots
+
+`cmd/cftm-demo` renders the UI from fabricated data. It drives the real
+collector against an in-process stub of the Cloudflare API, so the demo cannot
+show anything the production code path would not produce.
+
+```sh
+go run ./cmd/cftm-demo -addr 127.0.0.1:8099   # browse it locally
+go run ./cmd/cftm-demo -out ./site -base /CFTM # export a static site
+```
+
+The export walks every page through the real handler, writes `index.html` per
+route, rewrites root-absolute links onto the base path and drops the htmx
+bundle and the forms — without a server there is nothing to poll or post to.
+
+The `Demo` workflow publishes the export to GitHub Pages and regenerates
+`docs/screenshots/` with Playwright, committing them back so the README always
+matches the current UI.

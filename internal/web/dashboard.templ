@@ -171,10 +171,10 @@ templ cardStat(label string, value string) {
 templ cardProbes(p Probes) {
 	<div>
 		<dt class="text-xs uppercase tracking-wide text-slate-500">Probes</dt>
-		<dd class="truncate">
+		<dd class="flex flex-wrap items-center gap-1">
 			<span class={ probeSummaryTone(p) }>{ ProbeSummaryLabel(p) }</span>
 			if p.Worst != "" {
-				<span class={ ProbeBadgeClass(p.Worst), "ml-1" }>{ p.Worst }</span>
+				<span class={ ProbeBadgeClass(p.Worst) }>{ p.Worst }</span>
 			}
 		</dd>
 	</div>
