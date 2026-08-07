@@ -38,7 +38,7 @@ jobs:
       - name: Export static site
         run: go run ./cmd/cftm-demo -out ./site -base /${{ github.event.repository.name }}
 
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: ./site
 
