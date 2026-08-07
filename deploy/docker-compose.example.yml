@@ -13,7 +13,8 @@ services:
     restart: unless-stopped
     # Bind to loopback so the dashboard is only reachable through the tunnel.
     # Without the prefix Docker publishes on 0.0.0.0 and writes its own DNAT
-    # rules past the host firewall.
+    # rules past the host firewall. The fields are host IP, host port, container
+    # port; if the host port is taken, change the middle one only.
     ports:
       - "127.0.0.1:8080:8080"
     environment:
