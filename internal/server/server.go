@@ -43,6 +43,9 @@ type Server struct {
 	log       *slog.Logger
 	cfg       Config
 
+	refreshLimit throttle
+	probeLimit   throttle
+
 	assetVersion string
 	static       http.Handler
 }

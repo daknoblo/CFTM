@@ -401,6 +401,30 @@ func TestRefreshEndpointReturnsCards(t *testing.T) {
 	}
 }
 
+func TestRefreshEndpointIsThrottled(t *testing.T) {
+	_, h := newTestServer(t)
+
+	post := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+
+	if got := post().Code; got != http.StatusOK {
+		t.Fatalf("first POST /refresh = %d, want %d", got, http.StatusOK)
+	}
+
+	rec := post()
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("second POST /refresh = %d, want %d", rec.Code, http.StatusTooManyRequests)
+	}
+	if rec.Header().Get("Retry-After") == "" {
+		t.Error("a throttled response should carry Retry-After")
+	}
+}
+
 func TestProbeEndpointDisabled(t *testing.T) {
 	_, h := newTestServer(t)
 
