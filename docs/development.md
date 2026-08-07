@@ -76,6 +76,6 @@ page pick the finding up automatically.
 
 ## Releasing
 
-Push to `main` to publish `:stable` and `:latest`. Tag `vX.Y.Z` to publish the
-semver tags. There is no changelog automation; commit messages loosely follow
-Conventional Commits.
+Push to `main` to publish `:latest`. Tag `vX.Y.Z` to publish the semver tags.
+There is no changelog automation; commit messages loosely follow Conventional
+Commits.

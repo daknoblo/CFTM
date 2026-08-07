@@ -36,7 +36,7 @@ templ auditUnprotected(rules []Ingress) {
 				for _, rule := range rules {
 					<li class="flex flex-wrap items-center gap-2">
 						<span class="badge badge-error">public</span>
-						<span class="text-slate-100">{ rule.Hostname }</span>
+						@hostnameLink(rule.Hostname, "text-slate-100")
 						<span class="mono">{ rule.Service }</span>
 						<span class="text-slate-500">via { rule.TunnelName }</span>
 					</li>
@@ -63,7 +63,7 @@ templ auditIntentionallyPublic(rules []Ingress) {
 				for _, rule := range rules {
 					<li class="flex flex-wrap items-center gap-2">
 						<span class="badge badge-muted">by design</span>
-						<span class="text-slate-100">{ rule.Hostname }</span>
+						@hostnameLink(rule.Hostname, "text-slate-100")
 						<span class="mono">{ rule.Service }</span>
 						<span class="text-slate-500">via { rule.TunnelName }</span>
 						<span class={ ProbeBadgeClass(rule.Probe.Class) }>{ probeLabel(rule.Probe) }</span>
@@ -149,7 +149,18 @@ templ auditApps(apps []AccessApp) {
 						for _, app := range apps {
 							<tr data-filter-row={ FilterKey(app.Name, Join(app.Domains)) }>
 								<td class="table-cell text-slate-100">{ app.Name }</td>
-								<td class="table-cell mono">{ Join(app.Domains) }</td>
+								<td class="table-cell mono">
+									if len(app.Domains) == 0 {
+										<span class="text-slate-500">—</span>
+									} else {
+										for i, domain := range app.Domains {
+											if i > 0 {
+												<span class="text-slate-600">, </span>
+											}
+											@hostnameLink(domain, "")
+										}
+									}
+								</td>
 								<td class="table-cell">{ fmt.Sprintf("%d", app.PolicyCount) }</td>
 								<td class="table-cell">
 									if app.HasToken {

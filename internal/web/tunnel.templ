@@ -96,7 +96,7 @@ templ tunnelFindings(d TunnelDetail) {
 							<span class={ BadgeClass(f.Severity) }>{ f.Severity }</span>
 							<span class="min-w-0 flex-1 break-words">
 								if f.Hostname != "" {
-									<span class="mono mr-1">{ f.Hostname }</span>
+									@hostnameLink(f.Hostname, "mono mr-1")
 								}
 								{ f.Message }
 							</span>
@@ -115,7 +115,7 @@ templ tunnelFindings(d TunnelDetail) {
 							<span class="badge badge-muted">{ f.Code }</span>
 							<span class="min-w-0 flex-1 break-words">
 								if f.Hostname != "" {
-									<span class="mono mr-1">{ f.Hostname }</span>
+									@hostnameLink(f.Hostname, "mono mr-1")
 								}
 								{ f.Message }
 							</span>

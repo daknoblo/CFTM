@@ -3,6 +3,7 @@ package web
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -326,6 +327,20 @@ func StatusBadgeClass(status string) string {
 	default:
 		return "badge badge-muted"
 	}
+}
+
+// linkableHostname accepts ordinary DNS names only. Wildcard ingress entries
+// and the catch-all have nothing a browser could open.
+var linkableHostname = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$`)
+
+// HostnameHref returns the public URL of a hostname, or an empty string when it
+// is not one. Everything published through a tunnel is reachable over HTTPS at
+// the Cloudflare edge regardless of the origin scheme.
+func HostnameHref(host string) string {
+	if !linkableHostname.MatchString(host) {
+		return ""
+	}
+	return "https://" + host
 }
 
 // FormatPercent renders an availability figure, or a dash when unobserved.

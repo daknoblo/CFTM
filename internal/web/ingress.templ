@@ -62,7 +62,7 @@ templ ingressTable(rules []Ingress, showTunnel bool) {
 								if rule.Hostname == "" {
 									<span class="text-slate-500">catch-all</span>
 								} else {
-									<span class="text-slate-100">{ rule.Hostname }</span>
+									@hostnameLink(rule.Hostname, "text-slate-100")
 									if rule.Path != "" {
 										<span class="mono ml-1">{ rule.Path }</span>
 									}

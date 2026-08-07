@@ -78,3 +78,18 @@ func TestMuteRequiresAFindingCode(t *testing.T) {
 		t.Errorf("POST /findings/ignore without a code = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
 }
+
+func TestHostnamesRenderAsSafeExternalLinks(t *testing.T) {
+	_, h := newTestServer(t)
+
+	for _, path := range []string{"/ingress", "/audit"} {
+		body := get(t, h, path).Body.String()
+		want := `<a href="https://app.example.com" target="_blank" rel="noopener noreferrer"`
+		if path == "/audit" {
+			want = `<a href="https://public-app.example.com" target="_blank" rel="noopener noreferrer"`
+		}
+		if !strings.Contains(body, want) {
+			t.Errorf("%s does not render a hostname link with target and rel, want %s", path, want)
+		}
+	}
+}

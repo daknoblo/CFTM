@@ -35,7 +35,7 @@ templ eventList(events []Event) {
 							<span class="text-slate-600"> · </span>
 						}
 						if e.Hostname != "" {
-							<span class="mono">{ e.Hostname }</span>
+							@hostnameLink(e.Hostname, "mono")
 							<span class="text-slate-600"> · </span>
 						}
 						{ e.Message }

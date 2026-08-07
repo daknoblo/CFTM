@@ -19,7 +19,7 @@ The image is published to `ghcr.io/daknoblo/cftm`:
 
 | Tag | Contents |
 | --- | --- |
-| `stable`, `latest` | Current `main` |
+| `latest` | Current `main` |
 | `X.Y.Z`, `X.Y` | Tagged releases |
 | `sha-<short>` | A specific commit |
 
@@ -27,7 +27,7 @@ Images are built for `linux/amd64` and `linux/arm64`, signed with cosign
 (keyless) and shipped with an SBOM and provenance attestation.
 
 ```sh
-cosign verify ghcr.io/daknoblo/cftm:stable \
+cosign verify ghcr.io/daknoblo/cftm:latest \
   --certificate-identity-regexp 'https://github.com/daknoblo/CFTM/.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```

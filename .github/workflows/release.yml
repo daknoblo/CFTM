@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   # ci.yml runs in parallel on the same push, so without this gate a failing
-  # test would still publish a new :stable image.
+  # test would still publish a new :latest image.
   verify:
     name: Verify
     runs-on: ubuntu-latest
@@ -71,7 +71,6 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
           tags: |
-            type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

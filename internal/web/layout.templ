@@ -67,3 +67,18 @@ templ timestamp(t string, fallback string) {
 		<time datetime={ t } class="text-slate-300">{ t }</time>
 	}
 }
+
+// hostnameLink opens the public URL of a hostname in a new tab. It must not be
+// used inside another anchor, so the dashboard cards keep plain text.
+templ hostnameLink(host string, class string) {
+	if href := HostnameHref(host); href != "" {
+		<a
+			href={ templ.SafeURL(href) }
+			target="_blank"
+			rel="noopener noreferrer"
+			class={ class, "underline decoration-slate-600 underline-offset-2 transition hover:decoration-indigo-400 hover:text-indigo-300" }
+		>{ host }</a>
+	} else {
+		<span class={ class }>{ host }</span>
+	}
+}
