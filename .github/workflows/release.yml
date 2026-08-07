@@ -41,6 +41,7 @@ jobs:
       contents: read
       packages: write
       security-events: write
+      actions: read # private repository: upload-sarif reads its own workflow run
       id-token: write # required for cosign keyless signing
     steps:
       - uses: actions/checkout@v7

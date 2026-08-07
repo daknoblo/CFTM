@@ -22,16 +22,27 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      actions: read # private repository: the action reads its own workflow run
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # A manual build keeps CodeQL away from the Makefile default target, which
+      # needs the templ and Tailwind CLIs that are not installed here.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: go
-          build-mode: autobuild
+          build-mode: manual
+
+      - name: Build
+        run: CGO_ENABLED=0 go build ./...
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4

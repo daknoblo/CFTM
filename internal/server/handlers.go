@@ -1,10 +1,18 @@
 package server
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/daknoblo/CFTM/internal/version"
 	"github.com/daknoblo/CFTM/internal/web"
+)
+
+// Budgets for the manually triggered rounds, which outlive the request.
+const (
+	refreshTimeout = 2 * time.Minute
+	probeTimeout   = 5 * time.Minute
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +118,9 @@ func (s *Server) handlePartialLog(w http.ResponseWriter, r *http.Request) {
 
 // handleRefresh forces a collection cycle and returns the refreshed cards.
 func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
-	s.collector.PollOnce(r.Context())
+	ctx, cancel := detach(r.Context(), refreshTimeout)
+	defer cancel()
+	s.collector.PollOnce(ctx)
 
 	d, err := s.Dashboard(r.Context())
 	if err != nil {
@@ -126,11 +136,19 @@ func (s *Server) handleProbe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "probing is disabled", http.StatusNotFound)
 		return
 	}
-	if err := s.collector.ProbeOnce(r.Context(), s.prober); err != nil {
+	ctx, cancel := detach(r.Context(), probeTimeout)
+	defer cancel()
+	if err := s.collector.ProbeOnce(ctx, s.prober); err != nil {
 		s.serverError(w, r, "running probes", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// detach keeps a manually triggered round running when the browser navigates
+// away, so an aborted request cannot record a spurious failure half way through.
+func detach(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), timeout)
 }
 
 func (s *Server) logPage() web.LogPage {
