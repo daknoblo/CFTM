@@ -201,6 +201,10 @@ type AuditPage struct {
 	// hostname but not counted as a gap.
 	IntentionallyPublic []Ingress
 	Findings            []Finding
+	// ProbeTokenKnown is false when a service token is configured that this
+	// account does not have, which is the usual result of rotating it wrong.
+	ProbeTokenConfigured bool
+	ProbeTokenKnown      bool
 }
 
 // AccessApp is a Cloudflare Access application with its policy summary.
@@ -221,6 +225,8 @@ type ServiceToken struct {
 	ExpiresAt time.Time
 	DaysLeft  int
 	Severity  string
+	// InUse marks the token probing is configured with.
+	InUse bool
 }
 
 // AboutPage lists build and runtime information.

@@ -19,7 +19,7 @@ templ AuditPageView(l Layout, p AuditPage) {
 		}
 		@auditUnprotected(p.Unprotected)
 		@auditIntentionallyPublic(p.IntentionallyPublic)
-		@auditTokens(p.Tokens)
+		@auditTokens(p.Tokens, p)
 		@auditApps(p.Apps)
 	}
 }
@@ -74,11 +74,18 @@ templ auditIntentionallyPublic(rules []Ingress) {
 	}
 }
 
-templ auditTokens(tokens []ServiceToken) {
+templ auditTokens(tokens []ServiceToken, p AuditPage) {
 	<div class="card mb-6">
 		<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
 			Access service tokens ({ fmt.Sprintf("%d", len(tokens)) })
 		</h2>
+		if p.ProbeTokenConfigured && !p.ProbeTokenKnown {
+			<div class="alert-error mb-3">
+				Probing is configured with a client ID that no token in this account matches.
+				Rotating a token keeps its client ID, so this usually means a new token was
+				created and only the secret was copied over.
+			</div>
+		}
 		if len(tokens) == 0 {
 			<p class="text-sm text-slate-500">No service tokens in this account.</p>
 		} else {
@@ -95,7 +102,12 @@ templ auditTokens(tokens []ServiceToken) {
 					<tbody>
 						for _, t := range tokens {
 							<tr>
-								<td class="table-cell text-slate-100">{ t.Name }</td>
+								<td class="table-cell text-slate-100">
+									{ t.Name }
+									if t.InUse {
+										<span class="badge badge-ok ml-2">used for probing</span>
+									}
+								</td>
 								<td class="table-cell mono">{ t.ClientID }</td>
 								<td class="table-cell">
 									@timestamp(FormatTime(t.ExpiresAt), "never")

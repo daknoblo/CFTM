@@ -89,6 +89,7 @@ func run() error {
 		RetentionDays:  cfg.RetentionDays,
 		ProbeEnabled:   cfg.ProbeEnabled,
 		ProbeToken:     cfg.HasAccessServiceToken(),
+		ProbeClientID:  cfg.AccessClientID,
 		AuditEnabled:   cfg.AccessAuditEnabled,
 		ReleaseCheck:   cfg.ReleaseCheckEnabled,
 		ExpectedPublic: toSet(cfg.ExpectedPublic),

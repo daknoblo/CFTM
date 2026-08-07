@@ -93,3 +93,52 @@ func TestHostnamesRenderAsSafeExternalLinks(t *testing.T) {
 		}
 	}
 }
+
+// newProbeServer builds a server whose probing is configured with clientID.
+func newProbeServer(t *testing.T, clientID string) *Server {
+	t.Helper()
+
+	srv, _ := newTestServer(t)
+	srv.cfg.ProbeEnabled = true
+	srv.cfg.ProbeToken = clientID != ""
+	srv.cfg.ProbeClientID = clientID
+	return srv
+}
+
+func TestAuditPageMarksTheTokenUsedForProbing(t *testing.T) {
+	// The stub account owns exactly one token, abc.access.
+	page, err := newProbeServer(t, "abc.access").AuditPage(t.Context())
+	if err != nil {
+		t.Fatalf("AuditPage() error = %v", err)
+	}
+	if !page.ProbeTokenKnown {
+		t.Error("ProbeTokenKnown = false, want true for a client ID the account owns")
+	}
+	found := false
+	for _, token := range page.Tokens {
+		if token.ClientID == "abc.access" {
+			found = token.InUse
+		}
+	}
+	if !found {
+		t.Error("the matching token is not marked InUse")
+	}
+}
+
+func TestAuditPageFlagsAnUnknownProbeToken(t *testing.T) {
+	page, err := newProbeServer(t, "rotated-into-a-new-token.access").AuditPage(t.Context())
+	if err != nil {
+		t.Fatalf("AuditPage() error = %v", err)
+	}
+	if !page.ProbeTokenConfigured {
+		t.Fatal("ProbeTokenConfigured = false, want true")
+	}
+	if page.ProbeTokenKnown {
+		t.Error("ProbeTokenKnown = true, want false for a client ID no token matches")
+	}
+	for _, token := range page.Tokens {
+		if token.InUse {
+			t.Errorf("token %q is marked InUse but does not match the configured client ID", token.ClientID)
+		}
+	}
+}

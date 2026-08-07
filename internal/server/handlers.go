@@ -122,7 +122,8 @@ func (s *Server) features() []web.FeatureState {
 	probe := web.FeatureState{Name: "End-to-end probing", State: "off", Detail: "CFTM_PROBE_ENABLED is false"}
 	switch {
 	case s.cfg.ProbeEnabled && s.cfg.ProbeToken:
-		probe.State, probe.Detail = "on", "Requests carry the Access service token"
+		probe.State = "on"
+		probe.Detail = "Requests carry the Access service token " + s.cfg.ProbeClientID
 	case s.cfg.ProbeEnabled:
 		probe.State, probe.Detail = "unconfigured", "No Access service token, so guarded hostnames only reach the edge"
 	}

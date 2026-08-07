@@ -358,10 +358,11 @@ func (s *Server) AuditPage(ctx context.Context) (web.AuditPage, error) {
 	names := tunnelNames(snap.tunnels)
 	unexpected, expected := s.unprotected(snap)
 	page := web.AuditPage{
-		AuditedAt:           s.collector.AccessAuditAt(ctx),
-		Available:           snap.auditAvailable,
-		Unprotected:         s.toWebIngress(snap, unexpected, names),
-		IntentionallyPublic: s.toWebIngress(snap, expected, names),
+		AuditedAt:            s.collector.AccessAuditAt(ctx),
+		Available:            snap.auditAvailable,
+		Unprotected:          s.toWebIngress(snap, unexpected, names),
+		IntentionallyPublic:  s.toWebIngress(snap, expected, names),
+		ProbeTokenConfigured: s.cfg.ProbeToken,
 	}
 
 	hostnames := map[string]bool{}
@@ -397,6 +398,10 @@ func (s *Server) AuditPage(ctx context.Context) (web.AuditPage, error) {
 			Name:      token.Name,
 			ClientID:  token.ClientID,
 			ExpiresAt: token.ExpiresAt,
+			InUse:     s.cfg.ProbeClientID != "" && token.ClientID == s.cfg.ProbeClientID,
+		}
+		if item.InUse {
+			page.ProbeTokenKnown = true
 		}
 		if !token.ExpiresAt.IsZero() {
 			remaining := token.ExpiresAt.Sub(snap.now)

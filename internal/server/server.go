@@ -27,6 +27,10 @@ type Config struct {
 	RetentionDays int
 	ProbeEnabled  bool
 	ProbeToken    bool
+	// ProbeClientID is the Access client ID probing is configured with. It is an
+	// identifier, not a secret; the matching client secret never leaves the
+	// environment.
+	ProbeClientID string
 	AuditEnabled  bool
 	ReleaseCheck  bool
 
