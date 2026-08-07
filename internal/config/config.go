@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,10 @@ import (
 // 1200 requests per five minutes and is consumed cumulatively by the dashboard
 // and every other token of the same user.
 const minPollInterval = 10 * time.Second
+
+// accountIDPattern catches a placeholder or a pasted account name early; the
+// API would otherwise answer every call with an opaque 404.
+var accountIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{32}$`)
 
 // Config holds every runtime setting. Secrets are only ever read from the
 // environment and must never be echoed back by the API or the UI.
@@ -111,6 +116,8 @@ func Load() (Config, error) {
 
 	if c.AccountID == "" {
 		fail("CLOUDFLARE_ACCOUNT_ID is required")
+	} else if !accountIDPattern.MatchString(c.AccountID) {
+		fail("CLOUDFLARE_ACCOUNT_ID must be 32 hex characters, see the dashboard URL")
 	}
 	if c.APIToken == "" {
 		fail("CLOUDFLARE_API_TOKEN is required")

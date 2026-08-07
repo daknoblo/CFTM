@@ -11,7 +11,7 @@ import (
 // declare what they actually exercise.
 func setRequired(t *testing.T) {
 	t.Helper()
-	t.Setenv("CLOUDFLARE_ACCOUNT_ID", "acc123")
+	t.Setenv("CLOUDFLARE_ACCOUNT_ID", "0123456789abcdef0123456789abcdef")
 	t.Setenv("CLOUDFLARE_API_TOKEN", "token123")
 }
 
@@ -57,6 +57,22 @@ func TestLoadRequiredMissing(t *testing.T) {
 	for _, want := range []string{"CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %s", err, want)
+		}
+	}
+}
+
+func TestLoadRejectsMalformedAccountID(t *testing.T) {
+	t.Setenv("CLOUDFLARE_API_TOKEN", "token123")
+
+	for _, id := range []string{"abc", "my-account", "0123456789abcdef0123456789abcdeff"} {
+		t.Setenv("CLOUDFLARE_ACCOUNT_ID", id)
+
+		_, err := Load()
+		if err == nil {
+			t.Fatalf("Load() with account ID %q: error = nil, want an error", id)
+		}
+		if !strings.Contains(err.Error(), "32 hex characters") {
+			t.Errorf("error for %q = %q, want it to mention the expected format", id, err)
 		}
 	}
 }
