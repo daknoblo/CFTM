@@ -17,9 +17,9 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     environment:
-      CLOUDFLARE_API_TOKEN: "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN in your .env}"
-      CLOUDFLARE_ACCOUNT_ID: "${CLOUDFLARE_ACCOUNT_ID:?set CLOUDFLARE_ACCOUNT_ID in your .env}"
-      TZ: "Europe/Berlin"
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
+      - TZ=Europe/Berlin
     volumes:
       - cftm-data:/appdata
     read_only: true

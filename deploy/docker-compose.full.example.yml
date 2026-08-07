@@ -18,46 +18,47 @@ services:
     environment:
       # --- Required ----------------------------------------------------------
       # A dedicated read-only token, see docs/cloudflare-token.md.
-      CLOUDFLARE_API_TOKEN: "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN in your .env}"
-      CLOUDFLARE_ACCOUNT_ID: "${CLOUDFLARE_ACCOUNT_ID:?set CLOUDFLARE_ACCOUNT_ID in your .env}"
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
 
       # --- Server ------------------------------------------------------------
-      CFTM_LOG_LEVEL: "info" # debug, info, warn, error
-      TZ: "Europe/Berlin"
+      # debug, info, warn, error
+      - CFTM_LOG_LEVEL=info
+      - TZ=Europe/Berlin
 
       # --- Collection --------------------------------------------------------
       # The Cloudflare quota is 1200 requests per five minutes and is shared
       # with the dashboard and every other token of the same user. 30s uses
       # about 3.7% of it. The minimum accepted value is 10s.
-      CFTM_POLL_INTERVAL: "30s"
+      - CFTM_POLL_INTERVAL=30s
       # Ingress rules are re-fetched every N cycles, and immediately whenever a
       # connector reports a different configuration version.
-      CFTM_CONFIG_REFRESH_EVERY: "10"
+      - CFTM_CONFIG_REFRESH_EVERY=10
       # Age at which history, probe results, events and poll runs are pruned.
-      CFTM_RETENTION_DAYS: "90"
+      - CFTM_RETENTION_DAYS=90
 
       # --- Access audit ------------------------------------------------------
-      CFTM_ACCESS_AUDIT_ENABLED: "true"
-      CFTM_ACCESS_AUDIT_INTERVAL: "1h"
+      - CFTM_ACCESS_AUDIT_ENABLED=true
+      - CFTM_ACCESS_AUDIT_INTERVAL=1h
       # Hostnames published without an Access application on purpose, because
       # their clients cannot complete a browser login. They are still monitored
       # and probed, they just stop counting as a coverage gap.
-      CFTM_EXPECTED_PUBLIC: "public-app.example.com,feed.example.com"
+      - CFTM_EXPECTED_PUBLIC=public-app.example.com,feed.example.com
 
       # --- cloudflared version drift -----------------------------------------
-      CFTM_RELEASE_CHECK_ENABLED: "true"
-      CFTM_RELEASE_CHECK_INTERVAL: "12h"
+      - CFTM_RELEASE_CHECK_ENABLED=true
+      - CFTM_RELEASE_CHECK_INTERVAL=12h
 
       # --- End-to-end probing ------------------------------------------------
       # Off by default. Without the Access service token, guarded hostnames only
       # report access_challenge: that proves the Cloudflare edge is reachable
       # but says nothing about the origin.
-      CFTM_PROBE_ENABLED: "${CFTM_PROBE_ENABLED:-false}"
-      CFTM_PROBE_INTERVAL: "5m"
-      CFTM_PROBE_TIMEOUT: "10s"
-      CFTM_PROBE_CONCURRENCY: "4"
-      CFTM_ACCESS_CLIENT_ID: "${CFTM_ACCESS_CLIENT_ID:-}"
-      CFTM_ACCESS_CLIENT_SECRET: "${CFTM_ACCESS_CLIENT_SECRET:-}"
+      - CFTM_PROBE_ENABLED=false
+      - CFTM_PROBE_INTERVAL=5m
+      - CFTM_PROBE_TIMEOUT=10s
+      - CFTM_PROBE_CONCURRENCY=4
+      - CFTM_ACCESS_CLIENT_ID=${CFTM_ACCESS_CLIENT_ID}
+      - CFTM_ACCESS_CLIENT_SECRET=${CFTM_ACCESS_CLIENT_SECRET}
     volumes:
       - cftm-data:/appdata
     read_only: true
