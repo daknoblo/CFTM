@@ -16,7 +16,7 @@ import (
 
 // pages are the routes the exporter walks. Partials and the JSON API are left
 // out: without a server there is nothing to poll.
-var pages = []string{"/", "/ingress", "/audit", "/events", "/logs", "/about"}
+var pages = []string{"/", "/ingress", "/audit", "/events", "/notifications", "/logs", "/about"}
 
 // Export renders the whole UI to dir as a static site. basePath is the prefix
 // the site is served under, "/CFTM" for a GitHub Pages project site.
@@ -31,17 +31,51 @@ func Export(handler http.Handler, tunnelIDs []string, dir, basePath string) erro
 		routes = append(routes, "/tunnels/"+id)
 	}
 
+	written := map[string]bool{}
+	bodies := map[string]string{}
+
 	for _, route := range routes {
 		body, err := render(handler, route)
 		if err != nil {
 			return err
 		}
-		if err := writePage(dir, route, rewrite(body, basePath)); err != nil {
+		rewritten := rewrite(body, basePath)
+		written[linkTarget(basePath, route)] = true
+		bodies[route] = rewritten
+		if err := writePage(dir, route, rewritten); err != nil {
 			return err
 		}
 	}
 
+	if err := checkLinks(bodies, written, basePath); err != nil {
+		return err
+	}
+
 	return copyStatic(dir)
+}
+
+// linkTarget is the URL a route ends up at once it is a directory of pages.
+func linkTarget(basePath, route string) string {
+	return basePath + "/" + strings.TrimPrefix(strings.Trim(route, "/")+"/", "/")
+}
+
+// checkLinks refuses to publish a site that navigates to a page nobody wrote.
+// Adding a route to the application without adding it here is otherwise only
+// noticed by whoever clicks the dead nav entry.
+func checkLinks(bodies map[string]string, written map[string]bool, basePath string) error {
+	for route, body := range bodies {
+		for _, m := range rootURL.FindAllStringSubmatch(body, -1) {
+			target := m[2]
+			if m[1] != "href" || strings.Contains(target, "/static/") {
+				continue
+			}
+			// rootURL captures the path without its leading slash.
+			if !written["/"+target] {
+				return fmt.Errorf("demo: %s links to /%s, which no page was exported for", route, target)
+			}
+		}
+	}
+	return nil
 }
 
 // render runs one request through the real handler, in process.
