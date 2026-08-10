@@ -60,17 +60,18 @@ func run(out, base, addr string) error {
 	defer stop()
 
 	srv, err := server.New(st, coll, nil, logBuf, server.Config{
-		AccountID:      demo.AccountID,
-		PollInterval:   30 * time.Second,
-		RetentionDays:  90,
-		ProbeEnabled:   true,
-		ProbeToken:     true,
-		ProbeClientID:  demo.DemoClientID,
-		AuditEnabled:   true,
-		ReleaseCheck:   true,
-		NotifyEnabled:  true,
-		NotifySeverity: "warning",
-		NotifyCooldown: time.Hour,
+		AccountID:           demo.AccountID,
+		PollInterval:        30 * time.Second,
+		RetentionDays:       90,
+		ProbeEnabled:        true,
+		ProbeToken:          true,
+		ProbeClientID:       demo.DemoClientID,
+		AuditEnabled:        true,
+		ReleaseCheck:        true,
+		NotifyEnabled:       true,
+		NotifySeverity:      "warning",
+		NotifyCooldown:      time.Hour,
+		AccessLoginsEnabled: true,
 	}, logger)
 	if err != nil {
 		return err

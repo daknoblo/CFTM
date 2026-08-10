@@ -58,6 +58,46 @@ templ AboutPageView(l Layout, p AboutPage) {
 				}
 			</ul>
 		</div>
+		<div class="card mb-6">
+			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">API token permissions</h2>
+			<p class="mb-3 text-xs text-slate-500">
+				What the token was actually allowed to read, taken from the API's own answers.
+			</p>
+			<div class="overflow-x-auto">
+				<table class="w-full">
+					<thead>
+						<tr>
+							<th class="table-head">Area</th>
+							<th class="table-head">State</th>
+							<th class="table-head">Required permission</th>
+							<th class="table-head">Notes</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, p := range p.Permissions {
+							<tr>
+								<td class="table-cell text-slate-100">
+									{ p.Name }
+									if p.Optional {
+										<span class="badge badge-muted ml-1">optional</span>
+									}
+								</td>
+								<td class="table-cell">
+									<span class={ PermissionBadgeClass(p.State) } title={ p.Detail }>
+										{ PermissionLabel(p.State) }
+									</span>
+								</td>
+								<td class="table-cell mono">{ p.Required }</td>
+								<td class="table-cell text-slate-400">{ p.Detail }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<p class="mt-4 text-xs text-slate-500">
+				Add a missing permission under My Profile &rarr; API Tokens, then restart the container.
+			</p>
+		</div>
 		<div class="card">
 			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Configuration</h2>
 			<dl class="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">

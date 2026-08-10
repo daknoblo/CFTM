@@ -95,19 +95,20 @@ func run() error {
 	}
 
 	srv, err := server.New(st, coll, activeProber, logBuf, server.Config{
-		AccountID:       cfg.AccountID,
-		PollInterval:    cfg.PollInterval,
-		RetentionDays:   cfg.RetentionDays,
-		ProbeEnabled:    cfg.ProbeEnabled,
-		ProbeToken:      cfg.HasAccessServiceToken(),
-		ProbeClientID:   cfg.AccessClientID,
-		AuditEnabled:    cfg.AccessAuditEnabled,
-		ReleaseCheck:    cfg.ReleaseCheckEnabled,
-		NotifyEnabled:   cfg.NotifyEnabled,
-		NotifyTransport: dispatcher.Transport(),
-		NotifySeverity:  cfg.NotifyMinSeverity,
-		NotifyCooldown:  cfg.NotifyCooldown,
-		ExpectedPublic:  toSet(cfg.ExpectedPublic),
+		AccountID:           cfg.AccountID,
+		PollInterval:        cfg.PollInterval,
+		RetentionDays:       cfg.RetentionDays,
+		ProbeEnabled:        cfg.ProbeEnabled,
+		ProbeToken:          cfg.HasAccessServiceToken(),
+		ProbeClientID:       cfg.AccessClientID,
+		AuditEnabled:        cfg.AccessAuditEnabled,
+		ReleaseCheck:        cfg.ReleaseCheckEnabled,
+		NotifyEnabled:       cfg.NotifyEnabled,
+		NotifyTransport:     dispatcher.Transport(),
+		NotifySeverity:      cfg.NotifyMinSeverity,
+		NotifyCooldown:      cfg.NotifyCooldown,
+		AccessLoginsEnabled: cfg.AccessLoginsEnabled,
+		ExpectedPublic:      toSet(cfg.ExpectedPublic),
 	}, logger)
 	if err != nil {
 		return err
@@ -131,6 +132,9 @@ func run() error {
 	}
 	if cfg.AccessAuditEnabled {
 		spawn(func() { coll.RunAccessAudit(ctx, cfg.AccessAuditInterval) })
+	}
+	if cfg.AccessLoginsEnabled {
+		spawn(func() { coll.RunAccessLogins(ctx, cfg.AccessLoginsInterval, cfg.AccessLoginsWindow) })
 	}
 	if activeProber != nil {
 		spawn(func() { coll.RunProbes(ctx, activeProber, cfg.ProbeInterval) })

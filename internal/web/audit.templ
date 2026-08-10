@@ -18,6 +18,7 @@ templ AuditPageView(l Layout, p AuditPage) {
 			</p>
 		}
 		@auditUnprotected(p.Unprotected)
+		@auditLogins(p)
 		@auditIntentionallyPublic(p.IntentionallyPublic)
 		@auditTokens(p.Tokens, p)
 		@auditApps(p.Apps)
@@ -70,6 +71,75 @@ templ auditIntentionallyPublic(rules []Ingress) {
 					</li>
 				}
 			</ul>
+		</div>
+	}
+}
+
+templ auditLogins(p AuditPage) {
+	if p.LoginsEnabled {
+		<div class="card mb-6">
+			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+				Authentication ({ fmt.Sprintf("%d", p.LoginTotals.Apps) } applications)
+			</h2>
+			if len(p.Logins) == 0 {
+				<p class="text-sm text-slate-500">No authentication events in the collected window.</p>
+			} else {
+				<div class="mb-4 flex flex-wrap gap-6 text-sm">
+					<div>
+						<div class="text-xs uppercase tracking-wide text-slate-500">Granted</div>
+						<div class="text-xl font-semibold text-emerald-300">{ fmt.Sprintf("%d", p.LoginTotals.Allowed) }</div>
+					</div>
+					<div>
+						<div class="text-xs uppercase tracking-wide text-slate-500">Denied</div>
+						<div class={ "text-xl font-semibold", deniedTone(p.LoginTotals.Denied) }>
+							{ fmt.Sprintf("%d", p.LoginTotals.Denied) }
+						</div>
+					</div>
+					<div>
+						<div class="text-xs uppercase tracking-wide text-slate-500">Collected</div>
+						<div class="pt-1">
+							@timestamp(FormatTime(p.LoginsAt), "never")
+						</div>
+					</div>
+				</div>
+				<div class="overflow-x-auto">
+					<table class="w-full">
+						<thead>
+							<tr>
+								<th class="table-head">Application</th>
+								<th class="table-head">Granted</th>
+								<th class="table-head">Denied</th>
+								<th class="table-head">Distinct users</th>
+								<th class="table-head">Last seen</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, l := range p.Logins {
+								<tr>
+									<td class="table-cell mono">
+										@hostnameLink(l.AppDomain, "")
+									</td>
+									<td class="table-cell">{ fmt.Sprintf("%d", l.Allowed) }</td>
+									<td class="table-cell">
+										if l.Denied > 0 {
+											<span class="badge badge-error">{ fmt.Sprintf("%d", l.Denied) }</span>
+										} else {
+											<span class="text-slate-500">0</span>
+										}
+									</td>
+									<td class="table-cell">{ fmt.Sprintf("%d", l.Users) }</td>
+									<td class="table-cell">
+										@timestamp(FormatTime(l.LastAt), "—")
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<p class="mt-4 text-xs text-slate-500">
+					A denial is a policy doing its job or a policy that is wrong. Either way it is worth a look.
+				</p>
+			}
 		</div>
 	}
 }

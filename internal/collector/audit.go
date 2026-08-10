@@ -115,6 +115,7 @@ func (c *Collector) AuditAccess(ctx context.Context) error {
 	now := time.Now()
 
 	apps, err := c.cf.ListAccessApps(ctx)
+	c.record(ctx, CapAccessApps, err)
 	if err != nil {
 		return fmt.Errorf("list access apps: %w", err)
 	}
@@ -152,6 +153,7 @@ func (c *Collector) AuditAccess(ctx context.Context) error {
 	}
 
 	tokens, err := c.cf.ListServiceTokens(ctx)
+	c.record(ctx, CapServiceTokens, err)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("list service tokens: %w", err))
 	} else if err := c.store.ReplaceServiceTokens(ctx, toStoreTokens(tokens), now); err != nil {
@@ -176,6 +178,7 @@ func (c *Collector) auditAlerts(ctx context.Context, now time.Time) error {
 	coverage := AlertCoverage{Readable: true}
 
 	policies, err := c.cf.ListNotificationPolicies(ctx)
+	c.record(ctx, CapNotifications, err)
 	if err != nil {
 		c.log.Debug("listing notification policies failed", "err", err)
 		coverage.Readable = false

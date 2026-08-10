@@ -83,6 +83,7 @@ or Access configuration.
 | Account : Access: Apps and Policies | Read |
 | Account : Access: Service Tokens | Read |
 | Account : Notifications | Read (optional) |
+| Account : Access: Audit Logs | Read (optional) |
 
 See [docs/cloudflare-token.md](docs/cloudflare-token.md).
 

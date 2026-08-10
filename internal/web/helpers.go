@@ -132,3 +132,41 @@ func featureBadgeClass(state string) string {
 		return "badge badge-muted"
 	}
 }
+
+// deniedTone keeps a zero denial count quiet and calls out anything above it.
+func deniedTone(denied int) string {
+	if denied > 0 {
+		return "text-rose-300"
+	}
+	return "text-slate-100"
+}
+
+// PermissionLabel names the observed state of one API area.
+func PermissionLabel(state string) string {
+	switch state {
+	case "ok":
+		return "readable"
+	case "forbidden":
+		return "missing"
+	case "error":
+		return "error"
+	case "disabled":
+		return "off"
+	default:
+		return "not checked"
+	}
+}
+
+// PermissionBadgeClass colors an API area by whether the token may read it.
+func PermissionBadgeClass(state string) string {
+	switch state {
+	case "ok":
+		return "badge badge-ok"
+	case "forbidden":
+		return "badge badge-warn"
+	case "error":
+		return "badge badge-error"
+	default:
+		return "badge badge-muted"
+	}
+}

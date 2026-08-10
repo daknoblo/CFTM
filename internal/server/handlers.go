@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daknoblo/CFTM/internal/collector"
 	"github.com/daknoblo/CFTM/internal/store"
 	"github.com/daknoblo/CFTM/internal/version"
 	"github.com/daknoblo/CFTM/internal/web"
@@ -121,8 +122,86 @@ func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
 		PollInterval: s.cfg.PollInterval,
 		Retention:    s.cfg.RetentionDays,
 		Features:     s.features(),
+		Permissions:  s.permissions(r.Context()),
 	}
 	s.render(w, r, web.AboutPageView(s.layout(r, "About"), page))
+}
+
+// permissionAreas describes every part of the Cloudflare API CFTM reads, in the
+// order they matter.
+var permissionAreas = []struct {
+	Key      string
+	Name     string
+	Optional bool
+	Lost     string
+}{
+	{collector.CapTunnels, "Tunnels, connectors and ingress", false,
+		"Nothing works without this"},
+	{collector.CapAccessApps, "Access applications and policies", true,
+		"The audit page cannot tell which hostnames are protected"},
+	{collector.CapServiceTokens, "Access service tokens", true,
+		"Expiring service tokens go unnoticed"},
+	{collector.CapNotifications, "Notification policies", true,
+		"CFTM cannot tell whether Cloudflare would alert you about a tunnel"},
+	{collector.CapAccessLogins, "Access authentication log", true,
+		"No login or denial figures per application"},
+}
+
+// permissions reports what the token was actually allowed to read. The states
+// come from the responses the API gave, so a missing permission is observed
+// rather than guessed.
+func (s *Server) permissions(ctx context.Context) []web.Permission {
+	known := s.collector.Capabilities(ctx)
+
+	out := make([]web.Permission, 0, len(permissionAreas))
+	for _, area := range permissionAreas {
+		p := web.Permission{
+			Name:     area.Name,
+			State:    "unknown",
+			Required: collector.RequiredPermission(area.Key),
+			Optional: area.Optional,
+			Detail:   "Not called yet",
+		}
+
+		// "You switched it off" and "the token said no" look the same in the
+		// cache, so the configuration decides first.
+		if reason, off := s.switchedOff(area.Key); off {
+			p.State, p.Detail = collector.CapDisabled, reason
+			out = append(out, p)
+			continue
+		}
+
+		if capability, ok := known[area.Key]; ok {
+			p.State = capability.State
+			p.CheckedAt = capability.CheckedAt
+			switch capability.State {
+			case collector.CapOK:
+				p.Detail = "Readable"
+			case collector.CapForbidden:
+				p.Detail = area.Lost
+			default:
+				p.Detail = capability.Detail
+			}
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// switchedOff reports areas CFTM was told not to call, so a missing permission
+// is not blamed for a deliberate choice.
+func (s *Server) switchedOff(key string) (string, bool) {
+	switch key {
+	case collector.CapAccessApps, collector.CapServiceTokens:
+		if !s.cfg.AuditEnabled {
+			return "CFTM_ACCESS_AUDIT_ENABLED is false", true
+		}
+	case collector.CapAccessLogins:
+		if !s.cfg.AccessLoginsEnabled {
+			return "CFTM_ACCESS_LOGINS_ENABLED is false", true
+		}
+	}
+	return "", false
 }
 
 // features explains which optional capabilities are running, and for the ones

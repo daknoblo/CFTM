@@ -56,6 +56,10 @@ type Config struct {
 	NotifyEnabled     bool
 	NotifyMinSeverity string
 	NotifyCooldown    time.Duration
+
+	AccessLoginsEnabled  bool
+	AccessLoginsInterval time.Duration
+	AccessLoginsWindow   time.Duration
 }
 
 // Load reads the configuration from the environment and validates it.
@@ -123,6 +127,15 @@ func Load() (Config, error) {
 		fail("%w", err)
 	}
 	if c.NotifyCooldown, err = envDuration("CFTM_NOTIFY_COOLDOWN", time.Hour); err != nil {
+		fail("%w", err)
+	}
+	if c.AccessLoginsEnabled, err = envBool("CFTM_ACCESS_LOGINS_ENABLED", false); err != nil {
+		fail("%w", err)
+	}
+	if c.AccessLoginsInterval, err = envDuration("CFTM_ACCESS_LOGINS_INTERVAL", time.Hour); err != nil {
+		fail("%w", err)
+	}
+	if c.AccessLoginsWindow, err = envDuration("CFTM_ACCESS_LOGINS_WINDOW", 24*time.Hour); err != nil {
 		fail("%w", err)
 	}
 	switch c.NotifyMinSeverity {

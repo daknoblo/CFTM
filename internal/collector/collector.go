@@ -50,6 +50,7 @@ type Collector struct {
 
 	mu     sync.RWMutex
 	status Status
+	caps   capabilities
 
 	trigger chan struct{}
 }
@@ -156,6 +157,7 @@ const pruneEveryCycles = 120
 
 func (c *Collector) poll(ctx context.Context, now time.Time) error {
 	apiTunnels, err := c.cf.ListTunnels(ctx)
+	c.record(ctx, CapTunnels, err)
 	if err != nil {
 		return fmt.Errorf("list tunnels: %w", err)
 	}

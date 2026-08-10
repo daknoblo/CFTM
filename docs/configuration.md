@@ -83,6 +83,25 @@ The GitHub endpoint is unauthenticated and allows 60 requests per hour per IP,
 so the default interval is far below the limit. The result is cached in the
 database.
 
+## Access logins
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `CFTM_ACCESS_LOGINS_ENABLED` | `false` | Summarize the Access authentication log |
+| `CFTM_ACCESS_LOGINS_INTERVAL` | `1h` | How often the summary is rebuilt |
+| `CFTM_ACCESS_LOGINS_WINDOW` | `24h` | How far back each collection looks |
+
+Needs `Account : Access: Audit Logs : Read` on the token, which nothing else in
+CFTM uses. It is off by default for that reason.
+
+The raw log can hold tens of thousands of entries a day, so only a summary is
+kept: granted and denied counts plus distinct users per application, replaced
+on every collection. Distinct users rather than events, because one person
+reloading a page all day is not heavy usage.
+
+Denials are the interesting number. A policy doing its job and a policy that is
+wrong look identical from the outside, and both are worth knowing about.
+
 ## Notifications
 
 | Variable | Default | Description |

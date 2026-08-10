@@ -215,10 +215,31 @@ type AuditPage struct {
 	// hostname but not counted as a gap.
 	IntentionallyPublic []Ingress
 	Findings            []Finding
+	// Logins summarizes the Access authentication log, when it is collected.
+	Logins        []AccessLogin
+	LoginsAt      time.Time
+	LoginsEnabled bool
+	LoginTotals   LoginTotals
 	// ProbeTokenKnown is false when a service token is configured that this
 	// account does not have, which is the usual result of rotating it wrong.
 	ProbeTokenConfigured bool
 	ProbeTokenKnown      bool
+}
+
+// AccessLogin is the authentication summary of one application.
+type AccessLogin struct {
+	AppDomain string
+	Allowed   int
+	Denied    int
+	Users     int
+	LastAt    time.Time
+}
+
+// LoginTotals aggregates the summary across every application.
+type LoginTotals struct {
+	Allowed int
+	Denied  int
+	Apps    int
 }
 
 // AccessApp is a Cloudflare Access application with its policy summary.
@@ -253,6 +274,7 @@ type AboutPage struct {
 	PollInterval time.Duration
 	Retention    int
 	Features     []FeatureState
+	Permissions  []Permission
 }
 
 // FeatureState is one optional capability and why it is or is not running.
@@ -261,6 +283,21 @@ type FeatureState struct {
 	// State is one of "on", "off" or "unconfigured".
 	State  string
 	Detail string
+}
+
+// Permission is one area of the Cloudflare API and whether the token may read
+// it. It is filled from what the calls actually returned, not from guesswork.
+type Permission struct {
+	Name string
+	// State is one of "ok", "forbidden", "error", "disabled" or "unknown".
+	State string
+	// Required is the Cloudflare token permission this area needs.
+	Required string
+	// Detail explains a failure, or what is lost without the permission.
+	Detail string
+	// Optional marks an area CFTM runs without.
+	Optional  bool
+	CheckedAt time.Time
 }
 
 // NotificationsPageView is the model of the notification outbox page.

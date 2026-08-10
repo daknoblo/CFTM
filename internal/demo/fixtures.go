@@ -45,8 +45,49 @@ func Handler(now time.Time) http.Handler {
 	mux.HandleFunc("GET /accounts/"+AccountID+"/alerting/v3/policies", func(w http.ResponseWriter, _ *http.Request) {
 		writeResult(w, alertPolicies())
 	})
+	mux.HandleFunc("GET /accounts/"+AccountID+"/access/logs/access_requests", func(w http.ResponseWriter, _ *http.Request) {
+		writeResult(w, accessRequests(now))
+	})
 
 	return mux
+}
+
+// accessRequests fabricates an authentication log, including a run of denials
+// on one application so the UI has a real reason to draw attention.
+func accessRequests(now time.Time) []map[string]any {
+	entry := func(domain, user string, allowed bool, ago time.Duration) map[string]any {
+		return map[string]any{
+			"action": "login", "allowed": allowed, "app_domain": domain,
+			"user_email": user, "connection": "onetimepin",
+			"ip_address": "203.0.113.44",
+			"created_at": rfc3339(now.Add(-ago)),
+		}
+	}
+
+	var out []map[string]any
+	usage := []struct {
+		domain string
+		count  int
+	}{
+		{"git.example.com", 18},
+		{"wiki.example.com", 11},
+		{"photos.example.com", 7},
+		{"books.example.com", 4},
+	}
+	users := []string{"ada@example.com", "grace@example.com"}
+	for _, u := range usage {
+		for i := range u.count {
+			out = append(out, entry(u.domain, users[i%len(users)], true, time.Duration(i)*37*time.Minute))
+		}
+	}
+
+	// Someone repeatedly bounced off a policy: the case worth noticing.
+	for i := range 5 {
+		out = append(out, entry("vault.example.com", "contractor@example.org", false, time.Duration(i)*11*time.Minute))
+	}
+	out = append(out, entry("vault.example.com", "ada@example.com", true, 2*time.Hour))
+
+	return out
 }
 
 // alertPolicies covers only the flagship tunnel, so the other two demonstrate

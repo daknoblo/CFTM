@@ -422,6 +422,27 @@ func (s *Server) AuditPage(ctx context.Context) (web.AuditPage, error) {
 		Unprotected:          s.toWebIngress(snap, unexpected, names),
 		IntentionallyPublic:  s.toWebIngress(snap, expected, names),
 		ProbeTokenConfigured: s.cfg.ProbeToken,
+		LoginsEnabled:        s.cfg.AccessLoginsEnabled,
+		LoginsAt:             s.collector.AccessLoginsAt(ctx),
+	}
+
+	if page.LoginsEnabled {
+		logins, err := s.store.AccessLogins(ctx)
+		if err != nil {
+			return page, fmt.Errorf("load access logins: %w", err)
+		}
+		for _, l := range logins {
+			page.Logins = append(page.Logins, web.AccessLogin{
+				AppDomain: l.AppDomain,
+				Allowed:   l.Allowed,
+				Denied:    l.Denied,
+				Users:     l.Users,
+				LastAt:    l.LastAt,
+			})
+			page.LoginTotals.Allowed += l.Allowed
+			page.LoginTotals.Denied += l.Denied
+		}
+		page.LoginTotals.Apps = len(page.Logins)
 	}
 
 	hostnames := map[string]bool{}

@@ -178,3 +178,49 @@ func TestDashboardSummarizesProbeResults(t *testing.T) {
 		t.Errorf("ProbeSummaryLabel() = %q, want \"1 / 2 ok\"", label)
 	}
 }
+
+func permissionByName(t *testing.T, perms []web.Permission, name string) web.Permission {
+	t.Helper()
+	for _, p := range perms {
+		if p.Name == name {
+			return p
+		}
+	}
+	t.Fatalf("no permission row named %q", name)
+	return web.Permission{}
+}
+
+func TestPermissionsReportWhatTheTokenCouldRead(t *testing.T) {
+	srv, _ := newTestServer(t)
+	srv.cfg.AuditEnabled = true
+
+	perms := srv.permissions(t.Context())
+
+	// The stub answers the tunnel and Access endpoints, so those are readable.
+	if got := permissionByName(t, perms, "Tunnels, connectors and ingress"); got.State != "ok" {
+		t.Errorf("tunnels state = %q, want ok", got.State)
+	}
+	// It serves no alerting endpoint, so that call was refused.
+	notifications := permissionByName(t, perms, "Notification policies")
+	if notifications.State == "ok" {
+		t.Error("notification policies should not report readable against a stub that does not serve them")
+	}
+	if notifications.Required != "Account : Notifications : Read" {
+		t.Errorf("Required = %q, want the Notifications permission", notifications.Required)
+	}
+}
+
+func TestSwitchedOffAreasAreNotBlamedOnTheToken(t *testing.T) {
+	srv, _ := newTestServer(t)
+	srv.cfg.AuditEnabled = false
+	srv.cfg.AccessLoginsEnabled = false
+
+	perms := srv.permissions(t.Context())
+
+	for _, name := range []string{"Access applications and policies", "Access authentication log"} {
+		got := permissionByName(t, perms, name)
+		if got.State != "disabled" {
+			t.Errorf("%s state = %q, want disabled when the feature is switched off", name, got.State)
+		}
+	}
+}

@@ -43,6 +43,11 @@ services:
       # --- Access audit ------------------------------------------------------
       - CFTM_ACCESS_AUDIT_ENABLED=true
       - CFTM_ACCESS_AUDIT_INTERVAL=1h
+      # Summarize the Access authentication log. Needs the extra token
+      # permission Account : Access: Audit Logs : Read.
+      - CFTM_ACCESS_LOGINS_ENABLED=false
+      - CFTM_ACCESS_LOGINS_INTERVAL=1h
+      - CFTM_ACCESS_LOGINS_WINDOW=24h
       # Hostnames published without an Access application on purpose, because
       # their clients cannot complete a browser login. They are still monitored
       # and probed, they just stop counting as a coverage gap.

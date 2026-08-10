@@ -16,6 +16,7 @@ DNS, Access or notifications: a monitor has no reason to hold write access.
 | Account | Access: Apps and Policies | Read |
 | Account | Access: Service Tokens | Read |
 | Account | Notifications | Read (optional) |
+| Account | Access: Audit Logs | Read (optional) |
 
 4. Restrict **Account Resources** to the single account CFTM should watch.
 5. Optionally restrict the token by client IP.
@@ -28,6 +29,13 @@ scopes only enable the audit page. Without them, set
 tell you about a tunnel going down. Without it that check stays silent rather
 than guessing — monitoring a tunnel and being told when it breaks are two
 different things, and the gap is invisible until the outage nobody hears about.
+
+`Access: Audit Logs : Read` enables the authentication summary on the audit
+page, showing which applications are actually used and where logins are being
+denied. Off by default via `CFTM_ACCESS_LOGINS_ENABLED`.
+
+The **About** page lists every area of the API with what the token was actually
+allowed to read, so a missing permission is visible rather than guessed at.
 
 ## Account ID
 

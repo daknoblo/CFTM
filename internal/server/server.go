@@ -39,6 +39,8 @@ type Config struct {
 	NotifySeverity  string
 	NotifyCooldown  time.Duration
 
+	AccessLoginsEnabled bool
+
 	// ExpectedPublic names hostnames that are published without Access on
 	// purpose, keyed lowercase.
 	ExpectedPublic map[string]bool
