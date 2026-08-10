@@ -54,6 +54,7 @@ templ tunnelFacts(d TunnelDetail) {
 			@fact("Configuration version", fmt.Sprintf("%d", d.ConfigVer))
 			@fact("Data centers", Join(d.Card.Colos))
 			@factTime("Created", FormatTime(d.CreatedAt))
+			@fact("Connected for", d.Card.ConnectedFor)
 			@factTime("Connections active since", FormatTime(d.ActiveAt))
 			@factTime("Connections inactive since", FormatTime(d.InactiveAt))
 			@factTime("Last seen", FormatTime(d.Card.LastSeen))

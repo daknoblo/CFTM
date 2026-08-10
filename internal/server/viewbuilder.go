@@ -38,6 +38,7 @@ type snapshot struct {
 	probes         map[string]store.ProbeResult
 	latestRelease  string
 	auditAvailable bool
+	alertCoverage  collector.AlertCoverage
 
 	// ignored are the findings the operator muted in the UI.
 	ignored map[store.FindingRef]bool
@@ -100,6 +101,7 @@ func (s *Server) loadSnapshot(ctx context.Context) (snapshot, error) {
 
 	snap.latestRelease = s.collector.LatestRelease(ctx)
 	snap.auditAvailable = !s.collector.AccessAuditAt(ctx).IsZero()
+	snap.alertCoverage = s.collector.TunnelAlerts(ctx)
 
 	return snap, nil
 }
@@ -135,6 +137,7 @@ func (s *Server) findingsFor(ctx context.Context, snap snapshot, t store.Tunnel)
 		ServiceTokens:        snap.tokens,
 		AccessAuditAvailable: snap.auditAvailable,
 		ExpectedPublic:       snap.expectedPublic,
+		AlertCoverage:        snap.alertCoverage,
 		LatestRelease:        snap.latestRelease,
 		RecentChanges:        len(recent),
 		Now:                  snap.now,
@@ -165,6 +168,7 @@ func (s *Server) buildCard(ctx context.Context, snap snapshot, t store.Tunnel) w
 		Uptime24h:    toWebUptime("24 hours", 24*time.Hour, uptime),
 		Heartbeats:   s.heartbeats(ctx, t.ID, snap.now),
 		LastSeen:     t.LastSeen,
+		ConnectedFor: web.FormatDuration(t.ConnsActiveAt, snap.now),
 	}
 }
 

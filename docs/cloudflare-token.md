@@ -15,6 +15,7 @@ DNS, Access or notifications: a monitor has no reason to hold write access.
 | Account | Cloudflare Tunnel | Read |
 | Account | Access: Apps and Policies | Read |
 | Account | Access: Service Tokens | Read |
+| Account | Notifications | Read (optional) |
 
 4. Restrict **Account Resources** to the single account CFTM should watch.
 5. Optionally restrict the token by client IP.
@@ -22,6 +23,11 @@ DNS, Access or notifications: a monitor has no reason to hold write access.
 `Cloudflare Tunnel : Read` alone is enough to run the dashboard; the two Access
 scopes only enable the audit page. Without them, set
 `CFTM_ACCESS_AUDIT_ENABLED=false`.
+
+`Notifications : Read` lets CFTM check whether Cloudflare's own alerting would
+tell you about a tunnel going down. Without it that check stays silent rather
+than guessing — monitoring a tunnel and being told when it breaks are two
+different things, and the gap is invisible until the outage nobody hears about.
 
 ## Account ID
 

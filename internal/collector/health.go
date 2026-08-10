@@ -59,6 +59,7 @@ const (
 	FindingLocalhostOrigin   = "ingress_localhost_origin"
 	FindingAccessUnprotected = "access_unprotected"
 	FindingTokenExpiring     = "service_token_expiring"
+	FindingNoCloudflareAlert = "no_cloudflare_alert"
 )
 
 // Finding is one derived health observation about a tunnel.
@@ -83,9 +84,12 @@ type HealthInput struct {
 	// ExpectedPublic names hostnames that are published without Access on
 	// purpose, so a permanent warning does not drown out a real gap.
 	ExpectedPublic map[string]bool
-	LatestRelease  string
-	RecentChanges  int
-	Now            time.Time
+	// AlertCoverage says whether Cloudflare would notify anyone about this
+	// tunnel. It is only consulted when the token could read the policies.
+	AlertCoverage AlertCoverage
+	LatestRelease string
+	RecentChanges int
+	Now           time.Time
 }
 
 // Evaluate derives the health findings for one tunnel. It is pure so both the
@@ -125,8 +129,23 @@ func Evaluate(in HealthInput) []Finding {
 	findings = append(findings, evaluateIngress(in)...)
 	findings = append(findings, evaluateAccessCoverage(in)...)
 	findings = append(findings, evaluateServiceTokens(in)...)
+	findings = append(findings, evaluateAlertCoverage(in)...)
 
 	return findings
+}
+
+// evaluateAlertCoverage reports a tunnel Cloudflare would stay quiet about.
+// CFTM watching a tunnel is not the same as being told when it breaks, and the
+// gap is invisible until the outage nobody hears about.
+func evaluateAlertCoverage(in HealthInput) []Finding {
+	if !in.AlertCoverage.Readable || in.AlertCoverage.CoversTunnel(in.Tunnel.ID) {
+		return nil
+	}
+	return []Finding{{
+		Code:     FindingNoCloudflareAlert,
+		Severity: SeverityInfo,
+		Message:  "No Cloudflare notification policy would fire if this tunnel goes down",
+	}}
 }
 
 func evaluateConnectivity(in HealthInput) []Finding {

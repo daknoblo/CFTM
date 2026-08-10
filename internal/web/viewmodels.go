@@ -123,6 +123,10 @@ type TunnelCard struct {
 	Uptime24h    Uptime      `json:"uptime24h"`
 	Heartbeats   []Heartbeat `json:"-"`
 	LastSeen     time.Time   `json:"lastSeen"`
+	// ConnectedFor is how long the current connections have been up, as reported
+	// by Cloudflare. Unlike Uptime24h it needs no history of our own, so it says
+	// something useful from the very first poll.
+	ConnectedFor string `json:"connectedFor,omitempty"`
 }
 
 // TunnelDetail is the full view of a single tunnel.
@@ -389,6 +393,32 @@ func ProbeSummaryLabel(p Probes) string {
 		return fmt.Sprintf("%d / %d ok, %d pending", p.OK, p.Checked, p.Total-p.Checked)
 	}
 	return fmt.Sprintf("%d / %d ok", p.OK, p.Total)
+}
+
+// FormatDuration renders how long ago t was in the coarse form Cloudflare uses
+// for tunnel uptime, for example "5 days".
+func FormatDuration(t time.Time, now time.Time) string {
+	if t.IsZero() || t.After(now) {
+		return ""
+	}
+	d := now.Sub(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return plural(int(d.Minutes()), "minute")
+	case d < 24*time.Hour:
+		return plural(int(d.Hours()), "hour")
+	default:
+		return plural(int(d.Hours()/24), "day")
+	}
+}
+
+func plural(n int, unit string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", unit)
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
 }
 
 // FormatPercent renders an availability figure, or a dash when unobserved.

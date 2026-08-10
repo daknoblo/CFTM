@@ -42,8 +42,22 @@ func Handler(now time.Time) http.Handler {
 	mux.HandleFunc("GET /accounts/"+AccountID+"/access/service_tokens", func(w http.ResponseWriter, _ *http.Request) {
 		writeResult(w, serviceTokens(now))
 	})
+	mux.HandleFunc("GET /accounts/"+AccountID+"/alerting/v3/policies", func(w http.ResponseWriter, _ *http.Request) {
+		writeResult(w, alertPolicies())
+	})
 
 	return mux
+}
+
+// alertPolicies covers only the flagship tunnel, so the other two demonstrate
+// the finding for a tunnel Cloudflare would stay quiet about.
+func alertPolicies() []map[string]any {
+	return []map[string]any{{
+		"id": "pol-tunnel-health", "name": "Edge tunnel health",
+		"alert_type": "tunnel_health_event", "enabled": true,
+		"filters":    map[string]any{"tunnel_id": []string{tunnelEdge}},
+		"mechanisms": map[string]any{"email": []map[string]any{{"id": "ops@example.com"}}},
+	}}
 }
 
 func writeResult(w http.ResponseWriter, result any) {

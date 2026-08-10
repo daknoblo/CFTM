@@ -262,3 +262,29 @@ func TestSeverityRank(t *testing.T) {
 		t.Error("unknown severity should rank zero")
 	}
 }
+
+func TestNoCloudflareAlertIsOnlyReportedWhenPoliciesAreReadable(t *testing.T) {
+	base := HealthInput{
+		Tunnel: store.Tunnel{ID: "t1", Name: "edge", Status: "healthy"},
+		Now:    time.Now(),
+	}
+
+	// The token could not list policies: silence is not evidence of a gap.
+	unknown := base
+	unknown.AlertCoverage = AlertCoverage{Readable: false}
+	if hasFinding(Evaluate(unknown), FindingNoCloudflareAlert) {
+		t.Error("an unreadable policy list must not raise the finding")
+	}
+
+	uncovered := base
+	uncovered.AlertCoverage = AlertCoverage{Readable: true, Covered: []string{"other"}}
+	if !hasFinding(Evaluate(uncovered), FindingNoCloudflareAlert) {
+		t.Error("a tunnel no policy covers should raise the finding")
+	}
+
+	covered := base
+	covered.AlertCoverage = AlertCoverage{Readable: true, Covered: []string{"t1"}}
+	if hasFinding(Evaluate(covered), FindingNoCloudflareAlert) {
+		t.Error("a covered tunnel must not raise the finding")
+	}
+}

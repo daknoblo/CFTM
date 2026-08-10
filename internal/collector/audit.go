@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -14,7 +15,26 @@ import (
 const (
 	MetaLatestRelease = "cloudflared_latest"
 	MetaAccessAuditAt = "access_audit_at"
+	MetaTunnelAlerts  = "tunnel_alert_coverage"
 )
+
+// AlertCoverage records which tunnels a Cloudflare notification policy would
+// fire for. Readable is false when the token cannot list policies, in which
+// case an empty Covered must not be read as "nothing is alerted".
+type AlertCoverage struct {
+	Readable bool     `json:"readable"`
+	Covered  []string `json:"covered"`
+}
+
+// CoversTunnel reports whether an alert would fire for a tunnel.
+func (a AlertCoverage) CoversTunnel(id string) bool {
+	for _, covered := range a.Covered {
+		if covered == id {
+			return true
+		}
+	}
+	return false
+}
 
 // ReleaseChecker resolves the newest published cloudflared version.
 type ReleaseChecker interface {
@@ -142,7 +162,71 @@ func (c *Collector) AuditAccess(ctx context.Context) error {
 		return fmt.Errorf("record audit timestamp: %w", err)
 	}
 
+	if err := c.auditAlerts(ctx, now); err != nil {
+		errs = append(errs, err)
+	}
+
 	return errors.Join(errs...)
+}
+
+// auditAlerts records which tunnels Cloudflare itself would alert on. The token
+// may not carry the Notifications permission, which is not an error: the
+// coverage is simply unknown and no finding is raised.
+func (c *Collector) auditAlerts(ctx context.Context, now time.Time) error {
+	coverage := AlertCoverage{Readable: true}
+
+	policies, err := c.cf.ListNotificationPolicies(ctx)
+	if err != nil {
+		c.log.Debug("listing notification policies failed", "err", err)
+		coverage.Readable = false
+	} else {
+		tunnels, err := c.store.Tunnels(ctx)
+		if err != nil {
+			return fmt.Errorf("read tunnels for alert coverage: %w", err)
+		}
+		for _, t := range tunnels {
+			if alertedOn(policies, t.ID, t.Name) {
+				coverage.Covered = append(coverage.Covered, t.ID)
+			}
+		}
+	}
+
+	raw, err := json.Marshal(coverage)
+	if err != nil {
+		return fmt.Errorf("encode alert coverage: %w", err)
+	}
+	if err := c.store.SetMeta(ctx, MetaTunnelAlerts, string(raw), now); err != nil {
+		return fmt.Errorf("cache alert coverage: %w", err)
+	}
+	return nil
+}
+
+// alertedOn reports whether a health alert would reach someone for this tunnel.
+// A policy with no destination is configured but silent, so it does not count.
+func alertedOn(policies []cloudflare.NotificationPolicy, tunnelID, tunnelName string) bool {
+	for _, p := range policies {
+		if p.AlertType != cloudflare.AlertTunnelHealth {
+			continue
+		}
+		if p.Covers(tunnelID, tunnelName) && p.DeliversTo() > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// TunnelAlerts returns the cached alert coverage.
+func (c *Collector) TunnelAlerts(ctx context.Context) AlertCoverage {
+	raw, _, err := c.store.GetMeta(ctx, MetaTunnelAlerts)
+	if err != nil || raw == "" {
+		return AlertCoverage{}
+	}
+	var coverage AlertCoverage
+	if err := json.Unmarshal([]byte(raw), &coverage); err != nil {
+		c.log.Warn("decoding cached alert coverage failed", "err", err)
+		return AlertCoverage{}
+	}
+	return coverage
 }
 
 // AccessAuditAt returns when the Access inventory was last refreshed.

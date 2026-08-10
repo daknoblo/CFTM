@@ -82,6 +82,7 @@ or Access configuration.
 | Account : Cloudflare Tunnel | Read |
 | Account : Access: Apps and Policies | Read |
 | Account : Access: Service Tokens | Read |
+| Account : Notifications | Read (optional) |
 
 See [docs/cloudflare-token.md](docs/cloudflare-token.md).
 

@@ -125,6 +125,11 @@ templ tunnelCard(c TunnelCard) {
 				if note := UptimeNote(c.Uptime24h); note != "" {
 					<div class="text-xs text-slate-600">{ note }</div>
 				}
+				if c.ConnectedFor != "" {
+					<div class="text-xs text-slate-500" title="Reported by Cloudflare, independent of our own history">
+						connected { c.ConnectedFor }
+					</div>
+				}
 			</div>
 		</div>
 		<div class="mt-4 flex gap-0.5" title="Availability over the last 24 hours, half an hour per segment">
