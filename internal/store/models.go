@@ -55,14 +55,19 @@ type IngressRule struct {
 // AccessApp is a Cloudflare Access application together with a flattened
 // summary of its policies.
 type AccessApp struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Domains     []string  `json:"domains"`
-	Type        string    `json:"type"`
-	HasBypass   bool      `json:"hasBypass"`
-	HasToken    bool      `json:"hasToken"`
-	PolicyCount int       `json:"policyCount"`
-	LastSeen    time.Time `json:"lastSeen"`
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Domains []string `json:"domains"`
+	// RawDomains keep the path, so a path-scoped application can be told apart
+	// from one that covers a whole host.
+	RawDomains []string `json:"rawDomains,omitempty"`
+	Type       string   `json:"type"`
+	HasBypass  bool     `json:"hasBypass"`
+	HasToken   bool     `json:"hasToken"`
+	// BypassPolicies names the policies that waive Access enforcement.
+	BypassPolicies []string  `json:"bypassPolicies,omitempty"`
+	PolicyCount    int       `json:"policyCount"`
+	LastSeen       time.Time `json:"lastSeen"`
 }
 
 // ServiceToken is Access service token metadata.

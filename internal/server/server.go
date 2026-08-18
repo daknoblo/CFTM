@@ -40,6 +40,7 @@ type Config struct {
 	NotifyCooldown  time.Duration
 
 	AccessLoginsEnabled bool
+	AccessLoginsWindow  time.Duration
 
 	// ExpectedPublic names hostnames that are published without Access on
 	// purpose, keyed lowercase.
@@ -51,12 +52,13 @@ type Server struct {
 	store     *store.Store
 	collector *collector.Collector
 	prober    collector.Prober
+	release   collector.ReleaseChecker
 	logs      *logbuf.Buffer
 	log       *slog.Logger
 	cfg       Config
 
-	refreshLimit throttle
-	probeLimit   throttle
+	refreshLimit    throttle
+	refreshAllLimit throttle
 
 	assetVersion string
 	static       http.Handler
@@ -85,6 +87,13 @@ func New(st *store.Store, coll *collector.Collector, p collector.Prober, logs *l
 	}, nil
 }
 
+// WithReleaseChecker lets a manual refresh update the cached cloudflared
+// release, which otherwise only happens on the twelve-hour loop.
+func (s *Server) WithReleaseChecker(c collector.ReleaseChecker) *Server {
+	s.release = c
+	return s
+}
+
 // Handler returns the fully wired HTTP handler.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -108,7 +117,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /partials/log", s.handlePartialLog)
 
 	mux.HandleFunc("POST /refresh", s.handleRefresh)
-	mux.HandleFunc("POST /probe", s.handleProbe)
+	mux.HandleFunc("POST /refresh-all", s.handleRefreshAll)
 	mux.HandleFunc("POST /findings/ignore", s.handleIgnoreFinding)
 	mux.HandleFunc("POST /findings/restore", s.handleRestoreFinding)
 

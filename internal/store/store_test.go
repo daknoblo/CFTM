@@ -396,12 +396,15 @@ func TestAccessInventoryRoundTrip(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 
 	apps := []AccessApp{{
-		ID:          "app1",
-		Name:        "app.example.com",
-		Domains:     []string{"app.example.com"},
-		Type:        "self_hosted",
-		HasToken:    true,
-		PolicyCount: 2,
+		ID:             "app1",
+		Name:           "app.example.com",
+		Domains:        []string{"app.example.com"},
+		RawDomains:     []string{"app.example.com/api"},
+		Type:           "self_hosted",
+		HasToken:       true,
+		HasBypass:      true,
+		BypassPolicies: []string{"Public status page"},
+		PolicyCount:    2,
 	}}
 	if err := s.ReplaceAccessApps(ctx, apps, now); err != nil {
 		t.Fatalf("ReplaceAccessApps() error = %v", err)
@@ -415,6 +418,12 @@ func TestAccessInventoryRoundTrip(t *testing.T) {
 	}
 	if len(stored[0].Domains) != 1 || stored[0].Domains[0] != "app.example.com" {
 		t.Errorf("domains = %v, want the hostname preserved", stored[0].Domains)
+	}
+	if len(stored[0].RawDomains) != 1 || stored[0].RawDomains[0] != "app.example.com/api" {
+		t.Errorf("rawDomains = %v, want the path preserved", stored[0].RawDomains)
+	}
+	if len(stored[0].BypassPolicies) != 1 || stored[0].BypassPolicies[0] != "Public status page" {
+		t.Errorf("bypassPolicies = %v, want the policy name preserved", stored[0].BypassPolicies)
 	}
 
 	tokens := []ServiceToken{{ID: "tok1", Name: "cftm-monitor", ExpiresAt: now.Add(24 * time.Hour)}}

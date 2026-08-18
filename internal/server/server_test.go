@@ -75,13 +75,18 @@ const sentinelToken = "cf-api-token-must-never-be-rendered"
 
 func newTestServer(t *testing.T) (*Server, http.Handler) {
 	t.Helper()
+	return newTestServerWith(t, cloudflareStub())
+}
 
-	api := httptest.NewServer(cloudflareStub())
-	t.Cleanup(api.Close)
+func newTestServerWith(t *testing.T, api http.Handler) (*Server, http.Handler) {
+	t.Helper()
+
+	srvAPI := httptest.NewServer(api)
+	t.Cleanup(srvAPI.Close)
 
 	cf := cloudflare.New("acct", sentinelToken,
-		cloudflare.WithBaseURL(api.URL),
-		cloudflare.WithHTTPClient(api.Client()),
+		cloudflare.WithBaseURL(srvAPI.URL),
+		cloudflare.WithHTTPClient(srvAPI.Client()),
 		cloudflare.WithBackoffBase(time.Millisecond),
 	)
 
@@ -425,16 +430,21 @@ func TestRefreshEndpointIsThrottled(t *testing.T) {
 	}
 }
 
-func TestProbeEndpointDisabled(t *testing.T) {
+// The button stands in for a container restart, so it must work even when
+// probing is switched off; probing is only one of the steps.
+func TestRefreshAllWorksWithoutAProber(t *testing.T) {
 	_, h := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/probe", nil)
+	req := httptest.NewRequest(http.MethodPost, "/refresh-all", nil)
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("POST /probe = %d, want 404 when probing is disabled", rec.Code)
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("POST /refresh-all = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+	if got := rec.Header().Get("HX-Refresh"); got != "true" {
+		t.Errorf("HX-Refresh = %q, want \"true\" so the page reloads", got)
 	}
 }
 

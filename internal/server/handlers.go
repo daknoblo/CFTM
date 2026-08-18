@@ -17,8 +17,8 @@ import (
 
 // Budgets for the manually triggered rounds, which outlive the request.
 const (
-	refreshTimeout = 2 * time.Minute
-	probeTimeout   = 5 * time.Minute
+	refreshTimeout    = 2 * time.Minute
+	refreshAllTimeout = 5 * time.Minute
 )
 
 // manualInterval is the shortest spacing between two manually triggered rounds.
@@ -288,6 +288,13 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := detach(r.Context(), refreshTimeout)
 	defer cancel()
 	s.collector.PollOnce(ctx)
+	// The Access inventory has its own hourly loop. Without this, a policy the
+	// operator just fixed keeps raising findings with no way to force a recheck.
+	if s.cfg.AuditEnabled {
+		if err := s.collector.AuditAccess(ctx); err != nil {
+			s.log.Warn("access audit during refresh failed", "err", err)
+		}
+	}
 
 	d, err := s.Dashboard(r.Context())
 	if err != nil {
@@ -297,24 +304,48 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, web.TunnelCards(d.Tunnels))
 }
 
-// handleProbe forces a probe round.
-func (s *Server) handleProbe(w http.ResponseWriter, r *http.Request) {
-	if s.prober == nil {
-		http.Error(w, "probing is disabled", http.StatusNotFound)
-		return
-	}
-	if wait, ok := s.probeLimit.reserve(time.Now()); !ok {
+// handleRefreshAll runs every collection the daemon runs at start-up, so the
+// button is equivalent to restarting the container, then reloads the page.
+func (s *Server) handleRefreshAll(w http.ResponseWriter, r *http.Request) {
+	if wait, ok := s.refreshAllLimit.reserve(time.Now()); !ok {
 		tooSoon(w, wait)
 		return
 	}
 
-	ctx, cancel := detach(r.Context(), probeTimeout)
+	ctx, cancel := detach(r.Context(), refreshAllTimeout)
 	defer cancel()
-	if err := s.collector.ProbeOnce(ctx, s.prober); err != nil {
-		s.serverError(w, r, "running probes", err)
-		return
-	}
+	s.refreshAll(ctx)
+
+	// htmx reloads the document, so every panel shows the new data at once.
+	w.Header().Set("HX-Refresh", "true")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// refreshAll mirrors start-up: each step is independent, so one unavailable
+// area must not stop the rest.
+func (s *Server) refreshAll(ctx context.Context) {
+	s.collector.PollOnce(ctx)
+
+	if s.cfg.AuditEnabled {
+		if err := s.collector.AuditAccess(ctx); err != nil {
+			s.log.Warn("access audit during refresh failed", "err", err)
+		}
+	}
+	if s.cfg.AccessLoginsEnabled {
+		if err := s.collector.CollectAccessLogins(ctx, s.cfg.AccessLoginsWindow, time.Now()); err != nil {
+			s.log.Warn("access logins during refresh failed", "err", err)
+		}
+	}
+	if s.release != nil {
+		if err := s.collector.CheckRelease(ctx, s.release); err != nil {
+			s.log.Warn("release check during refresh failed", "err", err)
+		}
+	}
+	if s.prober != nil {
+		if err := s.collector.ProbeOnce(ctx, s.prober); err != nil {
+			s.log.Warn("probe round during refresh failed", "err", err)
+		}
+	}
 }
 
 func tooSoon(w http.ResponseWriter, wait time.Duration) {

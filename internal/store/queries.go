@@ -402,6 +402,7 @@ func (s *Store) ReplaceAccessApps(ctx context.Context, apps []AccessApp, now tim
 			}
 			policies, err := json.Marshal(map[string]any{
 				"hasBypass": a.HasBypass, "hasToken": a.HasToken, "count": a.PolicyCount,
+				"rawDomains": a.RawDomains, "bypassPolicies": a.BypassPolicies,
 			})
 			if err != nil {
 				return fmt.Errorf("store: encode policy summary: %w", err)
@@ -441,12 +442,15 @@ func (s *Store) AccessApps(ctx context.Context) ([]AccessApp, error) {
 			_ = json.Unmarshal([]byte(domains), &a.Domains)
 		}
 		var summary struct {
-			HasBypass bool `json:"hasBypass"`
-			HasToken  bool `json:"hasToken"`
-			Count     int  `json:"count"`
+			HasBypass      bool     `json:"hasBypass"`
+			HasToken       bool     `json:"hasToken"`
+			Count          int      `json:"count"`
+			RawDomains     []string `json:"rawDomains"`
+			BypassPolicies []string `json:"bypassPolicies"`
 		}
 		if policies != "" && json.Unmarshal([]byte(policies), &summary) == nil {
 			a.HasBypass, a.HasToken, a.PolicyCount = summary.HasBypass, summary.HasToken, summary.Count
+			a.RawDomains, a.BypassPolicies = summary.RawDomains, summary.BypassPolicies
 		}
 		a.LastSeen = fromUnix(lastSeen)
 		out = append(out, a)

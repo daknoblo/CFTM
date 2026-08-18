@@ -58,6 +58,7 @@ const (
 	FindingNoTLSVerify       = "ingress_no_tls_verify"
 	FindingLocalhostOrigin   = "ingress_localhost_origin"
 	FindingAccessUnprotected = "access_unprotected"
+	FindingAccessBypass      = "access_bypass"
 	FindingTokenExpiring     = "service_token_expiring"
 	FindingNoCloudflareAlert = "no_cloudflare_alert"
 )
@@ -128,6 +129,7 @@ func Evaluate(in HealthInput) []Finding {
 
 	findings = append(findings, evaluateIngress(in)...)
 	findings = append(findings, evaluateAccessCoverage(in)...)
+	findings = append(findings, evaluateAccessBypass(in)...)
 	findings = append(findings, evaluateServiceTokens(in)...)
 	findings = append(findings, evaluateAlertCoverage(in)...)
 
@@ -254,6 +256,73 @@ func evaluateAccessCoverage(in HealthInput) []Finding {
 		})
 	}
 	return findings
+}
+
+// evaluateAccessBypass reports hostnames an Access application waives. Bypass
+// disables every Access control and stops the authentication log, so the
+// hostname looks protected while nothing is enforced or recorded.
+func evaluateAccessBypass(in HealthInput) []Finding {
+	if !in.AccessAuditAvailable {
+		return nil
+	}
+	served := map[string]string{}
+	for _, rule := range in.Ingress {
+		if rule.Hostname == "" || !isHTTPService(rule.Service) {
+			continue
+		}
+		host := strings.ToLower(rule.Hostname)
+		if _, ok := served[host]; !ok {
+			served[host] = rule.Hostname
+		}
+	}
+
+	var findings []Finding
+	for _, app := range in.AccessApps {
+		if !app.HasBypass {
+			continue
+		}
+		for _, d := range app.Domains {
+			hostname, ok := served[strings.ToLower(d)]
+			if !ok {
+				continue
+			}
+			findings = append(findings, Finding{
+				Code:     FindingAccessBypass,
+				Severity: SeverityWarning,
+				Hostname: hostname,
+				Message:  bypassMessage(app, hostname),
+			})
+		}
+	}
+	return findings
+}
+
+func bypassMessage(app store.AccessApp, hostname string) string {
+	// The normalized domain hides the path, so a path-scoped application would
+	// otherwise read as if it waived the whole host.
+	scope := hostname
+	host := strings.ToLower(hostname)
+	var scoped []string
+	for _, raw := range app.RawDomains {
+		if h, _, _ := strings.Cut(raw, "/"); h == host {
+			scoped = append(scoped, raw)
+		}
+	}
+	if len(scoped) > 0 {
+		scope = strings.Join(scoped, ", ")
+	}
+
+	via := ""
+	switch n := len(app.BypassPolicies); {
+	case n == 1:
+		via = fmt.Sprintf(" via policy %q", app.BypassPolicies[0])
+	case n > 1:
+		via = fmt.Sprintf(" via policies %s", strings.Join(app.BypassPolicies, ", "))
+	}
+
+	return fmt.Sprintf(
+		"Access application %q bypasses %s%s, so those requests are not logged and no Access controls apply",
+		app.Name, scope, via)
 }
 
 func evaluateServiceTokens(in HealthInput) []Finding {

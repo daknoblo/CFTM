@@ -108,10 +108,14 @@ func run() error {
 		NotifySeverity:      cfg.NotifyMinSeverity,
 		NotifyCooldown:      cfg.NotifyCooldown,
 		AccessLoginsEnabled: cfg.AccessLoginsEnabled,
+		AccessLoginsWindow:  cfg.AccessLoginsWindow,
 		ExpectedPublic:      toSet(cfg.ExpectedPublic),
 	}, logger)
 	if err != nil {
 		return err
+	}
+	if cfg.ReleaseCheckEnabled {
+		srv = srv.WithReleaseChecker(release.New())
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

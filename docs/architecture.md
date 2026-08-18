@@ -93,7 +93,9 @@ a pure function over one tunnel's snapshot and derives:
 | `ingress_no_tls_verify` | info | `noTLSVerify` on an ingress rule |
 | `ingress_localhost_origin` | warning | Origin uses `localhost`; `cloudflared` tries `::1` first |
 | `access_unprotected` | warning | Public hostname without an Access application, unless declared in `CFTM_EXPECTED_PUBLIC` |
+| `access_bypass` | warning | Access application waives enforcement, so nothing is checked and nothing is logged |
 | `service_token_expiring` | warning/critical | Service token expires within 30 days |
+| `no_cloudflare_alert` | info | No Cloudflare notification policy would fire for the tunnel |
 
 Being pure, it is exercised directly by unit tests and reused by the UI without
 a second code path.

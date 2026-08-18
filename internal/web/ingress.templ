@@ -24,11 +24,9 @@ templ IngressPageView(l Layout, p IngressPage) {
 				<span class="text-xs text-slate-500">
 					<span data-filter-count>{ fmt.Sprintf("%d", len(p.Rules)) }</span> of { fmt.Sprintf("%d", len(p.Rules)) } rules
 				</span>
-				if p.ProbeEnabled {
-					<form hx-post="/probe" hx-swap="none" class="ml-auto">
-						<button type="submit" class="btn-ghost">Probe now</button>
-					</form>
-				}
+				<form hx-post="/refresh-all" hx-swap="none" class="ml-auto">
+					<button type="submit" class="btn-ghost">Refresh everything</button>
+				</form>
 			</div>
 			@ingressTable(p.Rules, true)
 		</div>

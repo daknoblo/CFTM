@@ -70,6 +70,44 @@ func TestAuditAccess(t *testing.T) {
 	}
 }
 
+func TestAuditAccessRecordsBypassPolicies(t *testing.T) {
+	api := newFakeAPI()
+	api.accessApps.Store(`{"success":true,"result":[
+	  {"id":"a1","name":"Beszel","domain":"metrics.example.com/api/beszel","type":"self_hosted"}
+	]}`)
+	api.accessPolicy.Store(`{"success":true,"result":[
+	  {"id":"p1","name":"DE only","decision":"bypass","include":[{"geo":{"country_code":"DE"}}]}
+	]}`)
+
+	c, st := newTestCollector(t, api)
+	ctx := t.Context()
+
+	if err := c.AuditAccess(ctx); err != nil {
+		t.Fatalf("AuditAccess() error = %v, want nil", err)
+	}
+
+	apps, err := st.AccessApps(ctx)
+	if err != nil {
+		t.Fatalf("AccessApps() error = %v", err)
+	}
+	if len(apps) != 1 {
+		t.Fatalf("len(apps) = %d, want 1", len(apps))
+	}
+	app := apps[0]
+	if !app.HasBypass {
+		t.Error("HasBypass = false, want true")
+	}
+	if len(app.BypassPolicies) != 1 || app.BypassPolicies[0] != "DE only" {
+		t.Errorf("BypassPolicies = %v, want [DE only]", app.BypassPolicies)
+	}
+	if len(app.Domains) != 1 || app.Domains[0] != "metrics.example.com" {
+		t.Errorf("Domains = %v, want the path stripped for ingress matching", app.Domains)
+	}
+	if len(app.RawDomains) != 1 || app.RawDomains[0] != "metrics.example.com/api/beszel" {
+		t.Errorf("RawDomains = %v, want the path preserved", app.RawDomains)
+	}
+}
+
 func TestAuditAccessToleratesUnreadablePolicies(t *testing.T) {
 	api := newFakeAPI()
 	api.accessApps.Store(`{"success":true,"result":[{"id":"a1","name":"app","domain":"app.example.com"}]}`)

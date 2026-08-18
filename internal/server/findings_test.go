@@ -5,9 +5,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/daknoblo/CFTM/internal/collector"
 	"github.com/daknoblo/CFTM/internal/store"
 	"github.com/daknoblo/CFTM/internal/web"
 )
@@ -20,6 +22,53 @@ func postForm(t *testing.T, h http.Handler, path string, form url.Values) *httpt
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec
+}
+
+// A policy the operator just removed must stop raising findings on refresh,
+// rather than lingering until the next scheduled Access audit.
+func TestRefreshReRunsTheAccessAudit(t *testing.T) {
+	var bypassActive atomic.Bool
+	bypassActive.Store(true)
+
+	mux := http.NewServeMux()
+	mux.Handle("/", cloudflareStub())
+	mux.HandleFunc("GET /accounts/acct/access/apps/{id}/policies", func(w http.ResponseWriter, _ *http.Request) {
+		if bypassActive.Load() {
+			_, _ = w.Write([]byte(`{"success":true,"result":[
+			  {"id":"p1","name":"DE only","decision":"bypass","include":[{"geo":{"country_code":"DE"}}]}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(accessPolicyJSON))
+	})
+
+	srv, h := newTestServerWith(t, mux)
+
+	if !hasBypassFinding(t, srv) {
+		t.Fatal("no bypass finding while the policy is active")
+	}
+
+	bypassActive.Store(false)
+	if rec := postForm(t, h, "/refresh", url.Values{}); rec.Code != http.StatusOK {
+		t.Fatalf("POST /refresh status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	if hasBypassFinding(t, srv) {
+		t.Error("bypass finding still raised after the policy was removed and refreshed")
+	}
+}
+
+func hasBypassFinding(t *testing.T, srv *Server) bool {
+	t.Helper()
+	detail, found, err := srv.TunnelDetail(t.Context(), "t1")
+	if err != nil || !found {
+		t.Fatalf("TunnelDetail() error = %v, found = %v", err, found)
+	}
+	for _, f := range detail.Card.Findings {
+		if f.Code == collector.FindingAccessBypass {
+			return true
+		}
+	}
+	return false
 }
 
 func TestFindingCanBeMutedAndRestored(t *testing.T) {

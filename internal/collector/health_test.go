@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -214,6 +215,96 @@ func TestEvaluateAccessCoverage(t *testing.T) {
 
 		if findings := Evaluate(in); !hasFinding(findings, FindingAccessUnprotected) {
 			t.Errorf("findings = %+v, want public-app.example.com still reported", findings)
+		}
+	})
+}
+
+func TestEvaluateAccessBypass(t *testing.T) {
+	in := healthyInput()
+	in.Ingress = []store.IngressRule{
+		{Hostname: "app.example.com", Service: "http://127.0.0.1:8091", ConfigVersion: 3},
+		{Hostname: "metrics.example.com", Service: "http://127.0.0.1:8096", ConfigVersion: 3},
+	}
+	in.AccessApps = []store.AccessApp{
+		{
+			ID: "a1", Name: "App",
+			Domains:    []string{"app.example.com"},
+			RawDomains: []string{"app.example.com"},
+		},
+		{
+			ID: "a2", Name: "Beszel",
+			Domains:        []string{"metrics.example.com"},
+			RawDomains:     []string{"metrics.example.com/api/beszel"},
+			HasBypass:      true,
+			BypassPolicies: []string{"DE only"},
+		},
+	}
+
+	t.Run("audit unavailable stays quiet", func(t *testing.T) {
+		if findings := Evaluate(in); hasFinding(findings, FindingAccessBypass) {
+			t.Errorf("findings = %+v, want no bypass findings before the audit ran", findings)
+		}
+	})
+
+	t.Run("only the bypassing application is reported", func(t *testing.T) {
+		in := in
+		in.AccessAuditAvailable = true
+
+		var hosts []string
+		for _, f := range Evaluate(in) {
+			if f.Code == FindingAccessBypass {
+				hosts = append(hosts, f.Hostname)
+			}
+		}
+		if len(hosts) != 1 || hosts[0] != "metrics.example.com" {
+			t.Errorf("bypassed = %v, want [metrics.example.com]", hosts)
+		}
+	})
+
+	t.Run("message keeps the path scope and names the policy", func(t *testing.T) {
+		in := in
+		in.AccessAuditAvailable = true
+
+		var msg string
+		for _, f := range Evaluate(in) {
+			if f.Code == FindingAccessBypass {
+				msg = f.Message
+			}
+		}
+		if !strings.Contains(msg, "metrics.example.com/api/beszel") {
+			t.Errorf("message = %q, want the path-scoped domain", msg)
+		}
+		if !strings.Contains(msg, `"DE only"`) {
+			t.Errorf("message = %q, want the policy name", msg)
+		}
+	})
+
+	t.Run("a hostname served by several rules is reported once", func(t *testing.T) {
+		in := in
+		in.AccessAuditAvailable = true
+		in.Ingress = append(in.Ingress, store.IngressRule{
+			Hostname: "metrics.example.com", Path: "/other",
+			Service: "http://127.0.0.1:8097", ConfigVersion: 3,
+		})
+
+		var n int
+		for _, f := range Evaluate(in) {
+			if f.Code == FindingAccessBypass {
+				n++
+			}
+		}
+		if n != 1 {
+			t.Errorf("bypass findings = %d, want 1", n)
+		}
+	})
+
+	t.Run("a declared public hostname is still reported", func(t *testing.T) {
+		in := in
+		in.AccessAuditAvailable = true
+		in.ExpectedPublic = map[string]bool{"metrics.example.com": true}
+
+		if findings := Evaluate(in); !hasFinding(findings, FindingAccessBypass) {
+			t.Errorf("findings = %+v, want bypass reported despite the public exception", findings)
 		}
 	})
 }

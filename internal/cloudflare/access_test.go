@@ -24,6 +24,23 @@ func TestAccessAppDomains(t *testing.T) {
 	}
 }
 
+func TestAccessAppRawDomainsKeepThePath(t *testing.T) {
+	app := AccessApp{
+		Domain:            "https://App.example.com/api/beszel",
+		SelfHostedDomains: []string{"app.example.com/api/beszel", "alt.example.com", ""},
+	}
+	got := app.RawDomains()
+	want := []string{"app.example.com/api/beszel", "alt.example.com"}
+	if len(got) != len(want) {
+		t.Fatalf("RawDomains() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("RawDomains()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 func TestAccessPolicyHelpers(t *testing.T) {
 	cases := []struct {
 		name       string

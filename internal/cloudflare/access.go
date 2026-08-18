@@ -40,18 +40,41 @@ func (a AccessApp) Domains() []string {
 	return out
 }
 
+// RawDomains returns the configured domains with their path intact. A
+// path-scoped application only covers part of a host, which the normalized
+// form cannot express.
+func (a AccessApp) RawDomains() []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(d string) {
+		d = trimScheme(d)
+		if d == "" || seen[d] {
+			return
+		}
+		seen[d] = true
+		out = append(out, d)
+	}
+	add(a.Domain)
+	for _, d := range a.SelfHostedDomains {
+		add(d)
+	}
+	return out
+}
+
 // normalizeDomain strips the scheme and any path so an Access domain such as
 // "app.example.com/path" can be matched against an ingress hostname.
 func normalizeDomain(d string) string {
-	d = strings.TrimSpace(strings.ToLower(d))
-	if d == "" {
-		return ""
-	}
-	if _, rest, found := strings.Cut(d, "://"); found {
-		d = rest
-	}
-	host, _, _ := strings.Cut(d, "/")
+	host, _, _ := strings.Cut(trimScheme(d), "/")
 	return host
+}
+
+// trimScheme lowercases and drops the scheme but keeps the path.
+func trimScheme(d string) string {
+	d = strings.TrimSpace(strings.ToLower(d))
+	if _, rest, found := strings.Cut(d, "://"); found {
+		return rest
+	}
+	return d
 }
 
 // HasServiceTokenRule reports whether the policy admits a service token, which

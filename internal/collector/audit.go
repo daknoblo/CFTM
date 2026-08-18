@@ -41,25 +41,31 @@ type ReleaseChecker interface {
 	Latest(ctx context.Context) (string, error)
 }
 
+// CheckRelease refreshes the cached cloudflared release once.
+func (c *Collector) CheckRelease(ctx context.Context, checker ReleaseChecker) error {
+	latest, err := checker.Latest(ctx)
+	if err != nil {
+		return fmt.Errorf("cloudflared release lookup: %w", err)
+	}
+	previous, _, err := c.store.GetMeta(ctx, MetaLatestRelease)
+	if err != nil {
+		c.log.Warn("reading cached release failed", "err", err)
+	}
+	if err := c.store.SetMeta(ctx, MetaLatestRelease, latest, time.Now()); err != nil {
+		return fmt.Errorf("caching release: %w", err)
+	}
+	if previous != "" && previous != latest {
+		c.log.Info("new cloudflared release", "from", previous, "to", latest)
+	}
+	return nil
+}
+
 // RunReleaseChecks keeps the cached cloudflared release up to date until the
 // context is canceled.
 func (c *Collector) RunReleaseChecks(ctx context.Context, checker ReleaseChecker, interval time.Duration) {
 	run := func() {
-		latest, err := checker.Latest(ctx)
-		if err != nil {
-			c.log.Warn("cloudflared release lookup failed", "err", err)
-			return
-		}
-		previous, _, err := c.store.GetMeta(ctx, MetaLatestRelease)
-		if err != nil {
-			c.log.Warn("reading cached release failed", "err", err)
-		}
-		if err := c.store.SetMeta(ctx, MetaLatestRelease, latest, time.Now()); err != nil {
-			c.log.Error("caching release failed", "err", err)
-			return
-		}
-		if previous != "" && previous != latest {
-			c.log.Info("new cloudflared release", "from", previous, "to", latest)
+		if err := c.CheckRelease(ctx, checker); err != nil {
+			c.log.Warn("cloudflared release check failed", "err", err)
 		}
 	}
 
@@ -124,10 +130,11 @@ func (c *Collector) AuditAccess(ctx context.Context) error {
 	stored := make([]store.AccessApp, 0, len(apps))
 	for _, app := range apps {
 		summary := store.AccessApp{
-			ID:      app.ID,
-			Name:    app.Name,
-			Domains: app.Domains(),
-			Type:    app.Type,
+			ID:         app.ID,
+			Name:       app.Name,
+			Domains:    app.Domains(),
+			RawDomains: app.RawDomains(),
+			Type:       app.Type,
 		}
 
 		policies, err := c.cf.ListAccessPolicies(ctx, app.ID)
@@ -139,6 +146,7 @@ func (c *Collector) AuditAccess(ctx context.Context) error {
 			for _, p := range policies {
 				if p.IsBypass() {
 					summary.HasBypass = true
+					summary.BypassPolicies = append(summary.BypassPolicies, p.Name)
 				}
 				if p.HasServiceTokenRule() {
 					summary.HasToken = true
