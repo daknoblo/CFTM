@@ -51,8 +51,12 @@ templ AboutPageView(l Layout, p AboutPage) {
 			<ul class="space-y-2 text-sm">
 				for _, f := range p.Features {
 					<li class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-						<span class={ featureBadgeClass(f.State) }>{ featureLabel(f.State) }</span>
-						<span class="text-slate-200">{ f.Name }</span>
+						// Fixed columns so the badges, names and details line up
+						// even though the labels differ in width.
+						<span class="w-24 shrink-0">
+							<span class={ featureBadgeClass(f.State) }>{ featureLabel(f.State) }</span>
+						</span>
+						<span class="w-52 shrink-0 text-slate-200">{ f.Name }</span>
 						<span class="min-w-0 flex-1 break-words text-xs text-slate-500">{ f.Detail }</span>
 					</li>
 				}
