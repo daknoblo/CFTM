@@ -448,6 +448,46 @@ func TestRefreshAllWorksWithoutAProber(t *testing.T) {
 	}
 }
 
+// The About page is where an operator checks what is running, so an optional
+// area missing from the list reads as "not built" even while it collects.
+func TestFeaturesListEveryOptionalArea(t *testing.T) {
+	srv := &Server{cfg: Config{OriginsEnabled: true, AccessLoginsEnabled: true}}
+
+	states := map[string]string{}
+	for _, f := range srv.features() {
+		states[f.Name] = f.State
+	}
+
+	for _, name := range []string{
+		"Tunnel monitoring", "Access audit", "End-to-end probing",
+		"cloudflared version check", "Declared public hostnames",
+		"Access authentication log", "Request origins", "Notifications",
+	} {
+		if _, ok := states[name]; !ok {
+			t.Errorf("features() has no entry for %q", name)
+		}
+	}
+	if got := states["Request origins"]; got != "on" {
+		t.Errorf("Request origins = %q, want \"on\" while collecting", got)
+	}
+	if got := states["Access authentication log"]; got != "on" {
+		t.Errorf("Access authentication log = %q, want \"on\" while collecting", got)
+	}
+}
+
+func TestFeaturesReportSwitchedOffAreas(t *testing.T) {
+	srv := &Server{cfg: Config{}}
+
+	for _, f := range srv.features() {
+		switch f.Name {
+		case "Request origins", "Access authentication log":
+			if f.State != "off" {
+				t.Errorf("%s = %q, want \"off\"", f.Name, f.State)
+			}
+		}
+	}
+}
+
 func TestCrossOriginPostIsRejected(t *testing.T) {
 	_, h := newTestServer(t)
 

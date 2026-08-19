@@ -252,12 +252,24 @@ func (s *Server) features() []web.FeatureState {
 		}
 	}
 
+	logins := web.FeatureState{Name: "Access authentication log", State: "off", Detail: "CFTM_ACCESS_LOGINS_ENABLED is false"}
+	if s.cfg.AccessLoginsEnabled {
+		logins.State, logins.Detail = "on", "Login and denial figures per application on the audit page"
+	}
+
+	origins := web.FeatureState{Name: "Request origins", State: "off", Detail: "CFTM_ORIGINS_ENABLED is false"}
+	if s.cfg.OriginsEnabled {
+		origins.State, origins.Detail = "on", "Requests summarized by country on the dashboard and the audit page"
+	}
+
 	return []web.FeatureState{
 		{Name: "Tunnel monitoring", State: "on", Detail: "Always on; uptime comes from the Cloudflare tunnel status"},
 		audit,
 		probe,
 		release,
 		public,
+		logins,
+		origins,
 		notifications,
 	}
 }
