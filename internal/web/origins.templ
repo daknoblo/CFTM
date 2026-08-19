@@ -50,7 +50,7 @@ templ originTable(countries []OriginCountry) {
 				for _, c := range countries {
 					<tr data-filter-row={ FilterKey(c.Code, c.Name) }>
 						<td class="table-cell text-slate-100">
-							<span class="mono mr-2 text-slate-400">{ c.Code }</span>
+							@countryFlag(c.Code)
 							{ c.Name }
 						</td>
 						<td class="table-cell">{ fmt.Sprintf("%d", c.Requests) }</td>
@@ -84,29 +84,57 @@ templ shareBar(share float64) {
 	</span>
 }
 
-// originHosts breaks the same figures down per hostname.
+// countryFlag shows the flag where the font has one and the bare code where it
+// does not, so the origin stays readable either way.
+templ countryFlag(code string) {
+	if flag := CountryFlag(code); flag != "" {
+		<span class="mr-2" aria-hidden="true">{ flag }</span>
+	} else {
+		<span class="mono mr-2 text-slate-500">{ code }</span>
+	}
+}
+
+// originHosts breaks the same figures down per hostname. A table keeps one
+// hostname to one row; stacking the countries underneath left most of the
+// width empty and made the section several screens long.
 templ originHosts(hosts []OriginBreakdown) {
 	<h3 class="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-slate-500">
-		By hostname
+		By hostname ({ fmt.Sprintf("%d", len(hosts)) })
 	</h3>
-	<div class="space-y-3">
-		for _, h := range hosts {
-			<div data-filter-row={ FilterKey(h.Hostname, originCodes(h.Countries)) }>
-				<div class="mb-1 flex flex-wrap items-baseline gap-x-2 text-sm">
-					@hostnameLink(h.Hostname, "mono")
-					<span class="text-xs text-slate-500">
-						{ fmt.Sprintf("%d requests", h.Requests) }
-					</span>
-				</div>
-				<div class="flex flex-wrap gap-1">
-					for _, c := range h.Countries {
-						<span class={ originBadgeClass(c) } title={ c.Name }>
-							{ c.Code } { fmt.Sprintf("%d", c.Requests) }
-						</span>
-					}
-				</div>
-			</div>
-		}
+	<div class="overflow-x-auto">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-head">Hostname</th>
+					<th class="table-head">Requests</th>
+					<th class="table-head">Origins</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, h := range hosts {
+					<tr data-filter-row={ FilterKey(h.Hostname, originCodes(h.Countries)) }>
+						<td class="table-cell mono">
+							@hostnameLink(h.Hostname, "")
+						</td>
+						<td class="table-cell whitespace-nowrap">{ fmt.Sprintf("%d", h.Requests) }</td>
+						<td class="table-cell">
+							<span class="flex flex-wrap gap-1">
+								for _, c := range h.Countries {
+									<span class={ originBadgeClass(c) } title={ c.Name }>
+										if flag := CountryFlag(c.Code); flag != "" {
+											{ flag }
+										} else {
+											{ c.Code }
+										}
+										{ fmt.Sprintf("%d", c.Requests) }
+									</span>
+								}
+							</span>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
 	</div>
 }
 
@@ -129,7 +157,7 @@ templ originTile(o Origins) {
 				for _, c := range o.Countries {
 					<div>
 						<div class="text-xs uppercase tracking-wide text-slate-500">
-							<span class="mono mr-1">{ c.Code }</span>
+							@countryFlag(c.Code)
 							{ c.Name }
 						</div>
 						<div class="text-xl font-semibold text-slate-100">

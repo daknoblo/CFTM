@@ -98,3 +98,31 @@ func CountryName(code string) string {
 	}
 	return code
 }
+
+// regionalIndicatorA is the base of the block a flag is built from: two
+// regional indicator symbols spelling the ISO code.
+const regionalIndicatorA = '\U0001F1E6'
+
+// CountryFlag renders an ISO code as a flag. It is plain text rather than an
+// image, which keeps it inside a content security policy that allows no
+// external sources. Windows ships no flag glyphs and falls back to the two
+// letters, which is the information the flag stood for anyway.
+func CountryFlag(code string) string {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	switch code {
+	case "", "XX", "T1":
+		return ""
+	}
+	if len(code) != 2 {
+		return ""
+	}
+
+	flag := make([]rune, 0, 2)
+	for _, c := range code {
+		if c < 'A' || c > 'Z' {
+			return ""
+		}
+		flag = append(flag, regionalIndicatorA+(c-'A'))
+	}
+	return string(flag)
+}
