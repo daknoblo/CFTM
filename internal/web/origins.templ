@@ -1,0 +1,153 @@
+package web
+
+import "fmt"
+
+// originCard renders the origin summary as a standalone card.
+templ originCard(title string, o Origins, hosts []OriginBreakdown) {
+	<div class="card mb-6">
+		<div class="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+			<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">
+				{ title }
+			</h2>
+			if o.Window != "" {
+				<span class="text-xs text-slate-500">last { o.Window }</span>
+			}
+			if !o.Collected.IsZero() {
+				<span class="inline-flex items-center gap-1 text-xs text-slate-500">
+					collected
+					@timestamp(FormatTime(o.Collected), "never")
+				</span>
+			}
+		</div>
+		if len(o.Countries) == 0 {
+			<p class="text-sm text-slate-500">No request origins collected yet.</p>
+		} else {
+			@originTable(o.Countries)
+			if o.Sampled {
+				@sampledNote()
+			}
+			if len(hosts) > 0 {
+				@originHosts(hosts)
+			}
+		}
+	</div>
+}
+
+// originTable lists countries with the share each one accounts for.
+templ originTable(countries []OriginCountry) {
+	<div class="overflow-x-auto">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-head">Country</th>
+					<th class="table-head">Requests</th>
+					<th class="table-head">Share</th>
+					<th class="table-head">Allowed</th>
+					<th class="table-head">Refused</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, c := range countries {
+					<tr data-filter-row={ FilterKey(c.Code, c.Name) }>
+						<td class="table-cell text-slate-100">
+							<span class="mono mr-2 text-slate-400">{ c.Code }</span>
+							{ c.Name }
+						</td>
+						<td class="table-cell">{ fmt.Sprintf("%d", c.Requests) }</td>
+						<td class="table-cell">
+							@shareBar(c.Share)
+						</td>
+						<td class="table-cell">{ fmt.Sprintf("%d", c.Allowed) }</td>
+						<td class="table-cell">
+							if c.Denied > 0 {
+								<span class="badge badge-error">{ fmt.Sprintf("%d", c.Denied) }</span>
+							} else {
+								<span class="text-slate-500">0</span>
+							}
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// shareBar draws the share as inline SVG. The content security policy forbids
+// inline style attributes, so the geometry has to live in SVG attributes.
+templ shareBar(share float64) {
+	<span class="inline-flex items-center gap-2">
+		<svg class="h-1.5 w-20 shrink-0" aria-hidden="true">
+			<rect width="100%" height="100%" rx="2" class="fill-slate-700"></rect>
+			<rect width={ fmt.Sprintf("%.1f%%", share) } height="100%" rx="2" class="fill-sky-400"></rect>
+		</svg>
+		<span class="text-xs text-slate-400">{ fmt.Sprintf("%.1f%%", share) }</span>
+	</span>
+}
+
+// originHosts breaks the same figures down per hostname.
+templ originHosts(hosts []OriginBreakdown) {
+	<h3 class="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-slate-500">
+		By hostname
+	</h3>
+	<div class="space-y-3">
+		for _, h := range hosts {
+			<div data-filter-row={ FilterKey(h.Hostname, originCodes(h.Countries)) }>
+				<div class="mb-1 flex flex-wrap items-baseline gap-x-2 text-sm">
+					@hostnameLink(h.Hostname, "mono")
+					<span class="text-xs text-slate-500">
+						{ fmt.Sprintf("%d requests", h.Requests) }
+					</span>
+				</div>
+				<div class="flex flex-wrap gap-1">
+					for _, c := range h.Countries {
+						<span class={ originBadgeClass(c) } title={ c.Name }>
+							{ c.Code } { fmt.Sprintf("%d", c.Requests) }
+						</span>
+					}
+				</div>
+			</div>
+		}
+	</div>
+}
+
+// originTile is the compact dashboard glance.
+templ originTile(o Origins) {
+	<div class="card mb-6">
+		<div class="mb-3 flex flex-wrap items-baseline gap-x-3">
+			<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">
+				Request origins
+			</h2>
+			if o.Window != "" {
+				<span class="text-xs text-slate-500">last { o.Window }</span>
+			}
+			<a href="/audit" class="ml-auto text-xs text-sky-400 hover:underline">Details</a>
+		</div>
+		if len(o.Countries) == 0 {
+			<p class="text-sm text-slate-500">No request origins collected yet.</p>
+		} else {
+			<div class="flex flex-wrap gap-x-6 gap-y-3">
+				for _, c := range o.Countries {
+					<div>
+						<div class="text-xs uppercase tracking-wide text-slate-500">
+							<span class="mono mr-1">{ c.Code }</span>
+							{ c.Name }
+						</div>
+						<div class="text-xl font-semibold text-slate-100">
+							{ fmt.Sprintf("%d", c.Requests) }
+						</div>
+						@shareBar(c.Share)
+					</div>
+				}
+			</div>
+			if o.Sampled {
+				@sampledNote()
+			}
+		}
+	</div>
+}
+
+templ sampledNote() {
+	<p class="mt-3 text-xs text-slate-500">
+		Figures marked by Cloudflare as adaptively sampled are estimates, not exact counts.
+	</p>
+}

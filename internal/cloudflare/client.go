@@ -3,6 +3,7 @@
 package cloudflare
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -35,6 +36,10 @@ const (
 	// defaultBudgetReserve keeps requests in hand for the Terraform pipeline
 	// and the dashboard, which draw from the same 1200-per-5-minutes quota.
 	defaultBudgetReserve = 100
+
+	// graphQLBudgetReserve is the same idea for the Analytics API, which has
+	// its own and much smaller quota of 300 queries per five minutes.
+	graphQLBudgetReserve = 25
 )
 
 // ResultInfo is the pagination block of the Cloudflare response envelope.
@@ -74,8 +79,21 @@ type Client struct {
 	backoffBase   time.Duration
 	budgetReserve int
 
-	mu   sync.RWMutex
-	rate RateLimit
+	mu          sync.RWMutex
+	rate        RateLimit
+	graphQLRate RateLimit
+}
+
+// request is one outgoing call.
+type request struct {
+	method string
+	// path names the endpoint in errors and logs; url may also carry a query.
+	path string
+	url  string
+	body []byte
+	// graphQL calls draw on a separate quota, so their headers must not move
+	// the REST budget guard.
+	graphQL bool
 }
 
 // Option customizes a Client.
@@ -133,6 +151,14 @@ func (c *Client) RateLimit() RateLimit {
 	return c.rate
 }
 
+// GraphQLRateLimit returns the quota state of the Analytics API, which is
+// counted separately from the REST one.
+func (c *Client) GraphQLRateLimit() RateLimit {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.graphQLRate
+}
+
 func (c *Client) accountPath(parts ...string) string {
 	segments := make([]string, 0, len(parts)+2)
 	segments = append(segments, "accounts", url.PathEscape(c.accountID))
@@ -144,13 +170,17 @@ func (c *Client) accountPath(parts ...string) string {
 
 // do issues a GET and returns the raw body, retrying transient failures.
 func (c *Client) do(ctx context.Context, path string, query url.Values) ([]byte, error) {
-	if err := c.checkBudget(); err != nil {
-		return nil, err
-	}
-
 	endpoint := c.baseURL + path
 	if len(query) > 0 {
 		endpoint += "?" + query.Encode()
+	}
+	return c.send(ctx, request{method: http.MethodGet, path: path, url: endpoint})
+}
+
+// send runs one request through the budget guard and the retry loop.
+func (c *Client) send(ctx context.Context, req request) ([]byte, error) {
+	if err := c.checkBudget(req.graphQL); err != nil {
+		return nil, err
 	}
 
 	var lastErr error
@@ -160,7 +190,7 @@ func (c *Client) do(ctx context.Context, path string, query url.Values) ([]byte,
 				return nil, err
 			}
 		}
-		body, err := c.attempt(ctx, endpoint, path)
+		body, err := c.attempt(ctx, req)
 		if err == nil {
 			return body, nil
 		}
@@ -169,45 +199,52 @@ func (c *Client) do(ctx context.Context, path string, query url.Values) ([]byte,
 			return nil, err
 		}
 		c.log.Debug("cloudflare request failed, retrying",
-			"path", path, "attempt", attempt, "err", err)
+			"path", req.path, "attempt", attempt, "err", err)
 	}
 	return nil, lastErr
 }
 
-func (c *Client) attempt(ctx context.Context, endpoint, path string) ([]byte, error) {
-	// The endpoint is assembled from the fixed API base URL plus internal path
+func (c *Client) attempt(ctx context.Context, req request) ([]byte, error) {
+	var body io.Reader
+	if req.body != nil {
+		body = bytes.NewReader(req.body)
+	}
+	// The URL is assembled from the fixed API base URL plus internal path
 	// constants and escaped identifiers; it is never caller-controlled.
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil) //nolint:gosec // G704: endpoint is not user-controlled
+	httpReq, err := http.NewRequestWithContext(ctx, req.method, req.url, body) //nolint:gosec // G704: url is not user-controlled
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "cftm/"+version.Version)
+	httpReq.Header.Set("Authorization", "Bearer "+c.token)
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.Header.Set("User-Agent", "cftm/"+version.Version)
+	if req.body != nil {
+		httpReq.Header.Set("Content-Type", "application/json")
+	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	c.recordRateLimit(resp.Header, resp.StatusCode)
+	c.recordRateLimit(resp.Header, resp.StatusCode, req.graphQL)
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
-		return nil, fmt.Errorf("cloudflare: GET %s: read body: %w", path, err)
+		return nil, fmt.Errorf("cloudflare: %s %s: read body: %w", req.method, req.path, err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, newAPIError(resp, path, body)
+		return nil, newAPIError(resp, req.method, req.path, payload)
 	}
-	return body, nil
+	return payload, nil
 }
 
-func newAPIError(resp *http.Response, path string, body []byte) *APIError {
+func newAPIError(resp *http.Response, method, path string, body []byte) *APIError {
 	apiErr := &APIError{
 		StatusCode: resp.StatusCode,
-		Method:     http.MethodGet,
+		Method:     method,
 		Path:       path,
 		RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
 	}
@@ -250,21 +287,26 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 }
 
 // checkBudget short-circuits before the shared quota is exhausted.
-func (c *Client) checkBudget() error {
+func (c *Client) checkBudget(graphQL bool) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if !c.rate.Known() || time.Now().After(c.rate.ResetAt) {
+
+	rate, reserve := c.rate, c.budgetReserve
+	if graphQL {
+		rate, reserve = c.graphQLRate, graphQLBudgetReserve
+	}
+	if !rate.Known() || time.Now().After(rate.ResetAt) {
 		return nil
 	}
-	if c.rate.Remaining > c.budgetReserve {
+	if rate.Remaining > reserve {
 		return nil
 	}
 	return fmt.Errorf("%w: %d requests left, resets at %s",
-		ErrBudgetGuard, c.rate.Remaining, c.rate.ResetAt.Format(time.RFC3339))
+		ErrBudgetGuard, rate.Remaining, rate.ResetAt.Format(time.RFC3339))
 }
 
 // recordRateLimit stores the quota state advertised by the response headers.
-func (c *Client) recordRateLimit(h http.Header, statusCode int) {
+func (c *Client) recordRateLimit(h http.Header, statusCode int, graphQL bool) {
 	now := time.Now()
 	remaining, resetIn, haveLimit := parseRateLimitHeader(h.Get("Ratelimit"))
 	quota, havePolicy := parseRateLimitPolicy(h.Get("Ratelimit-Policy"))
@@ -272,22 +314,27 @@ func (c *Client) recordRateLimit(h http.Header, statusCode int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	rate := &c.rate
+	if graphQL {
+		rate = &c.graphQLRate
+	}
+
 	if haveLimit {
-		c.rate.Remaining = remaining
-		c.rate.ResetAt = now.Add(resetIn)
-		c.rate.ObservedAt = now
+		rate.Remaining = remaining
+		rate.ResetAt = now.Add(resetIn)
+		rate.ObservedAt = now
 	}
 	if havePolicy {
-		c.rate.Quota = quota
+		rate.Quota = quota
 	}
 	if statusCode == http.StatusTooManyRequests {
 		retryAfter := parseRetryAfter(h.Get("Retry-After"))
 		if retryAfter <= 0 {
 			retryAfter = 5 * time.Minute
 		}
-		c.rate.Remaining = 0
-		c.rate.ResetAt = now.Add(retryAfter)
-		c.rate.ObservedAt = now
+		rate.Remaining = 0
+		rate.ResetAt = now.Add(retryAfter)
+		rate.ObservedAt = now
 	}
 }
 

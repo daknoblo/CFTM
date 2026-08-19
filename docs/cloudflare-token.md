@@ -17,6 +17,9 @@ DNS, Access or notifications: a monitor has no reason to hold write access.
 | Account | Access: Service Tokens | Read |
 | Account | Notifications | Read (optional) |
 | Account | Access: Audit Logs | Read (optional) |
+| Account | Account Analytics | Read (optional) |
+| Zone | Zone | Read (optional) |
+| Zone | Analytics | Read (optional) |
 
 4. Restrict **Account Resources** to the single account CFTM should watch.
 5. Optionally restrict the token by client IP.
@@ -33,6 +36,19 @@ different things, and the gap is invisible until the outage nobody hears about.
 `Access: Audit Logs : Read` enables the authentication summary on the audit
 page, showing which applications are actually used and where logins are being
 denied. Off by default via `CFTM_ACCESS_LOGINS_ENABLED`.
+
+The three analytics scopes enable the request origin display, off by default
+via `CFTM_ORIGINS_ENABLED`. They read the GraphQL Analytics API, which has its
+own quota and does not draw on the REST budget.
+
+`Zone : Analytics : Read` matters most. It is the only source that also sees
+traffic an Access **bypass** policy waves through: bypass disables every Access
+control and Cloudflare does not log those requests as Access events at all, so
+the login datasets never mention them. `Account Analytics : Read` covers login
+attempts including the non-identity ones a country or IP policy produces, which
+the REST audit log omits. `Zone : Read` only maps a hostname onto its zone.
+
+Restrict **Zone Resources** to the zones CFTM should watch.
 
 The **About** page lists every area of the API with what the token was actually
 allowed to read, so a missing permission is visible rather than guessed at.

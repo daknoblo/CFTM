@@ -7,6 +7,11 @@ templ DashboardPage(l Layout, d Dashboard) {
 		@pageHeading("Tunnels", "Health, connectors and ingress across the account")
 		@PollStatusBar(d.Poll)
 		@TotalsRow(d.Totals)
+		if d.Origins.Enabled {
+			// Outside the polled fragment: a ten-second swap would replace this
+			// tile every cycle for data that changes hourly.
+			@originTile(d.Origins)
+		}
 		@TunnelCards(d.Tunnels)
 	}
 }

@@ -65,6 +65,10 @@ func Seed(ctx context.Context, st *store.Store, log *slog.Logger) (*collector.Co
 		api.Close()
 		return nil, nil, fmt.Errorf("access logins: %w", err)
 	}
+	if err := coll.CollectRequestOrigins(ctx, 24*time.Hour, now); err != nil {
+		api.Close()
+		return nil, nil, fmt.Errorf("request origins: %w", err)
+	}
 
 	// One muted finding so the feature is visible without clicking.
 	err := st.IgnoreFinding(ctx, store.FindingRef{

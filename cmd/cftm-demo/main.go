@@ -72,6 +72,7 @@ func run(out, base, addr string) error {
 		NotifySeverity:      "warning",
 		NotifyCooldown:      time.Hour,
 		AccessLoginsEnabled: true,
+		OriginsEnabled:      true,
 	}, logger)
 	if err != nil {
 		return err

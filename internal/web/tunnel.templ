@@ -17,6 +17,9 @@ templ TunnelPage(l Layout, d TunnelDetail) {
 		@tunnelConnectors(d.Connectors)
 		@tunnelConnections(d.Connections)
 		@tunnelIngress(d.Ingress)
+		if d.Origins.Enabled {
+			@originCard("Request origins", d.Origins, nil)
+		}
 		@tunnelEvents(d.Events)
 	}
 }

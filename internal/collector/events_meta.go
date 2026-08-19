@@ -53,6 +53,8 @@ func EventLabel(kind string) string {
 		return "access"
 	case store.EventServiceTokenAging:
 		return "service token"
+	case store.EventOriginCountry:
+		return "origin"
 	case store.EventPollFailed:
 		return "poll failed"
 	default:

@@ -99,6 +99,7 @@ const (
 	EventProbe             = "probe"
 	EventAccessCoverage    = "access_coverage"
 	EventServiceTokenAging = "service_token_aging"
+	EventOriginCountry     = "origin_country"
 	EventPollFailed        = "poll_failed"
 )
 

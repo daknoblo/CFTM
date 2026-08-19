@@ -60,6 +60,13 @@ type Config struct {
 	AccessLoginsEnabled  bool
 	AccessLoginsInterval time.Duration
 	AccessLoginsWindow   time.Duration
+
+	OriginsEnabled  bool
+	OriginsInterval time.Duration
+	OriginsWindow   time.Duration
+	// ExpectedCountries lists the origins that are normal here, so only a
+	// genuinely new one is worth an event.
+	ExpectedCountries []string
 }
 
 // Load reads the configuration from the environment and validates it.
@@ -82,6 +89,8 @@ func Load() (Config, error) {
 
 		ExpectedPublic: envList("CFTM_EXPECTED_PUBLIC"),
 
+		ExpectedCountries: envList("CFTM_EXPECTED_COUNTRIES"),
+
 		NotifyMinSeverity: strings.ToLower(envString("CFTM_NOTIFY_MIN_SEVERITY", "warning")),
 	}
 
@@ -103,6 +112,12 @@ func Load() (Config, error) {
 	if c.ProbeTimeout, err = envDuration("CFTM_PROBE_TIMEOUT", 10*time.Second); err != nil {
 		fail("%w", err)
 	}
+	if c.OriginsInterval, err = envDuration("CFTM_ORIGINS_INTERVAL", time.Hour); err != nil {
+		fail("%w", err)
+	}
+	if c.OriginsWindow, err = envDuration("CFTM_ORIGINS_WINDOW", 24*time.Hour); err != nil {
+		fail("%w", err)
+	}
 
 	if c.ConfigRefreshEvery, err = envInt("CFTM_CONFIG_REFRESH_EVERY", 10, 1); err != nil {
 		fail("%w", err)
@@ -121,6 +136,9 @@ func Load() (Config, error) {
 		fail("%w", err)
 	}
 	if c.ProbeEnabled, err = envBool("CFTM_PROBE_ENABLED", false); err != nil {
+		fail("%w", err)
+	}
+	if c.OriginsEnabled, err = envBool("CFTM_ORIGINS_ENABLED", false); err != nil {
 		fail("%w", err)
 	}
 	if c.NotifyEnabled, err = envBool("CFTM_NOTIFY_ENABLED", false); err != nil {

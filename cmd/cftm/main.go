@@ -72,6 +72,7 @@ func run() error {
 		PollInterval:       cfg.PollInterval,
 		ConfigRefreshEvery: cfg.ConfigRefreshEvery,
 		RetentionDays:      cfg.RetentionDays,
+		ExpectedCountries:  toSet(cfg.ExpectedCountries),
 	}, logger)
 
 	// No transport is wired up yet: notifications are evaluated, deduplicated
@@ -109,6 +110,7 @@ func run() error {
 		NotifyCooldown:      cfg.NotifyCooldown,
 		AccessLoginsEnabled: cfg.AccessLoginsEnabled,
 		AccessLoginsWindow:  cfg.AccessLoginsWindow,
+		OriginsEnabled:      cfg.OriginsEnabled,
 		ExpectedPublic:      toSet(cfg.ExpectedPublic),
 	}, logger)
 	if err != nil {
@@ -139,6 +141,9 @@ func run() error {
 	}
 	if cfg.AccessLoginsEnabled {
 		spawn(func() { coll.RunAccessLogins(ctx, cfg.AccessLoginsInterval, cfg.AccessLoginsWindow) })
+	}
+	if cfg.OriginsEnabled {
+		spawn(func() { coll.RunRequestOrigins(ctx, cfg.OriginsInterval, cfg.OriginsWindow) })
 	}
 	if activeProber != nil {
 		spawn(func() { coll.RunProbes(ctx, activeProber, cfg.ProbeInterval) })

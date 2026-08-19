@@ -1,5 +1,7 @@
 package web
 
+import "strings"
+
 // healthyTone colors the healthy counter red as soon as one tunnel is not.
 func healthyTone(t Totals) string {
 	if t.Tunnels > 0 && t.Healthy < t.Tunnels {
@@ -68,6 +70,24 @@ func accessBadgeClass(a AccessState) string {
 	default:
 		return "badge badge-ok"
 	}
+}
+
+// originBadgeClass colors a country by whether its requests were refused.
+func originBadgeClass(c OriginCountry) string {
+	if c.Denied > 0 {
+		return "badge badge-warn"
+	}
+	return "badge badge-muted"
+}
+
+// originCodes joins the country codes of a hostname so the row can be filtered
+// by country as well as by name.
+func originCodes(countries []OriginCountry) string {
+	parts := make([]string, 0, len(countries))
+	for _, c := range countries {
+		parts = append(parts, c.Code, c.Name)
+	}
+	return strings.Join(parts, " ")
 }
 
 // tokenBadgeClass colors a service token by remaining lifetime.

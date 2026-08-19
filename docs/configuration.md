@@ -163,3 +163,34 @@ an empty inventory cannot be told apart from an account with no applications.
 
 A 404 or 500 from the application counts as `ok`: the tunnel delivered the
 request, what the application answers is not the monitor's business.
+
+## Request origins
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `CFTM_ORIGINS_ENABLED` | `false` | Collect which countries requests came from |
+| `CFTM_ORIGINS_INTERVAL` | `1h` | How often the summary is rebuilt |
+| `CFTM_ORIGINS_WINDOW` | `24h` | How far back each collection looks |
+| `CFTM_EXPECTED_COUNTRIES` | — | Comma-separated country codes that are normal here |
+
+Only aggregated country codes are stored. Client IP addresses are personal data
+and answer no question the country does not, so they are discarded.
+
+Two sources are read, because they see different traffic. The zone-scoped HTTP
+analytics covers every proxied request, including traffic an Access **bypass**
+policy waves through — bypass is never logged as an Access event. The Access
+login analytics covers authentication attempts, including the non-identity ones
+a country policy produces. Either may be unavailable without stopping the other.
+
+`CFTM_ORIGINS_WINDOW` is an upper bound. Cloudflare limits how far back a plan
+may be queried, and a Free zone keeps only a few days, so the window is
+shortened to what the plan allows and the effective period is shown alongside
+the figures.
+
+Cloudflare samples these datasets once the request volume grows. Sampled
+figures are estimates and are marked as such rather than scaled up, which would
+invent precision the API did not provide.
+
+`CFTM_EXPECTED_COUNTRIES` decides what counts as normal. A country outside that
+list appearing for the first time is recorded in the event log at `info`, below
+the default notification threshold, so it is visible without paging anyone.

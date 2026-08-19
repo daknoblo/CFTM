@@ -52,9 +52,36 @@ reachable. The Cloudflare API is therefore the only available source.
 | `GET /accounts/{id}/access/apps` | Access applications |
 | `GET /accounts/{id}/access/apps/{id}/policies` | Policies per application |
 | `GET /accounts/{id}/access/service_tokens` | Service token metadata |
+| `GET /accounts/{id}/access/logs/access_requests` | Access authentication log |
+| `GET /zones?account.id={id}` | Which zone serves a hostname |
+| `POST /graphql` | Request origins by country |
 
 The tunnel list already embeds `connections[]`, so status, data center and
 origin IP cost no extra request.
+
+## The GraphQL Analytics API
+
+Request origins need a second API. The REST endpoints carry no country, and the
+Access logs miss traffic entirely when a **bypass** policy is in play: bypass
+disables every Access control and Cloudflare does not record those requests as
+Access events. Only the zone-scoped `httpRequestsAdaptiveGroups` dataset sees
+them.
+
+Three things differ from the REST client and are worth knowing:
+
+- It is a **POST**, and errors arrive as **HTTP 200** with a populated `errors`
+  array, so the status code says nothing. A missing permission is recognised by
+  `extensions.code == "authz"` rather than by matching message text.
+- It has its **own quota**, 300 queries per five minutes, counted separately
+  from the REST budget. The client tracks the two independently so an analytics
+  query cannot eat into the reserve that protects the Terraform pipeline.
+- The datasets are **adaptively sampled**. Counts become estimates as volume
+  grows, and how far back a query may reach depends on the plan. Both are read
+  from the API rather than assumed: the window is shortened to what the plan
+  allows, and estimated figures are labelled instead of scaled up.
+
+Only aggregated country codes are stored. Client IP addresses are personal data
+and answer no question the country does not.
 
 ## API budget
 
@@ -66,6 +93,7 @@ cumulatively across the dashboard, API keys and every token.
 | Poll cycle at 30s (1 list + 3 connections) | 40 | 3.3 % |
 | Ingress configuration, on drift or every 10th cycle | 3 | 0.3 % |
 | Access audit, hourly burst | 41 | 3.4 % |
+| Request origins, hourly, one zone list plus a query per zone | 3 | 0.3 % |
 | **Total, steady state / with audit burst** | **~44 / ~85** | **3.7 % / 7 %** |
 
 The client parses the `Ratelimit` response header, stores the remaining quota

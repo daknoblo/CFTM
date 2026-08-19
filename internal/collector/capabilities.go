@@ -15,11 +15,14 @@ const MetaCapabilities = "api_capabilities"
 
 // Capability keys, one per area of the API that needs its own token permission.
 const (
-	CapTunnels       = "tunnels"
-	CapAccessApps    = "access_apps"
-	CapServiceTokens = "service_tokens"
-	CapNotifications = "notifications"
-	CapAccessLogins  = "access_logins"
+	CapTunnels        = "tunnels"
+	CapAccessApps     = "access_apps"
+	CapServiceTokens  = "service_tokens"
+	CapNotifications  = "notifications"
+	CapAccessLogins   = "access_logins"
+	CapZones          = "zones"
+	CapZoneAnalytics  = "zone_analytics"
+	CapLoginAnalytics = "login_analytics"
 )
 
 // Capability states.
@@ -50,6 +53,12 @@ func RequiredPermission(key string) string {
 		return "Account : Notifications : Read"
 	case CapAccessLogins:
 		return "Account : Access: Audit Logs : Read"
+	case CapZones:
+		return "Zone : Zone : Read"
+	case CapZoneAnalytics:
+		return "Zone : Analytics : Read"
+	case CapLoginAnalytics:
+		return "Account : Account Analytics : Read"
 	default:
 		return ""
 	}
@@ -92,9 +101,15 @@ func (c *Collector) record(ctx context.Context, key string, err error) {
 	}
 }
 
+// isForbidden reports a missing permission. The Analytics API answers those
+// with HTTP 200 and an errors array, so a second error type has to be checked.
 func isForbidden(err error) bool {
 	var apiErr *cloudflare.APIError
-	return errors.As(err, &apiErr) && apiErr.IsAuth()
+	if errors.As(err, &apiErr) {
+		return apiErr.IsAuth()
+	}
+	var gqlErr *cloudflare.GraphQLError
+	return errors.As(err, &gqlErr) && gqlErr.IsAuth()
 }
 
 // Capabilities returns what the token was last observed to be allowed to read.

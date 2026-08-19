@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/daknoblo/CFTM/internal/store"
+	"github.com/daknoblo/CFTM/internal/web"
 )
 
 func TestBuildHeartbeats(t *testing.T) {
@@ -124,5 +125,60 @@ func TestSanitizeLogValue(t *testing.T) {
 		if strings.Contains(got, bad) {
 			t.Errorf("sanitizeLogValue() = %q, still contains a control character", got)
 		}
+	}
+}
+
+func TestFormatWindow(t *testing.T) {
+	cases := []struct {
+		in   time.Duration
+		want string
+	}{
+		{0, ""},
+		{-time.Hour, ""},
+		{30 * time.Minute, "1 hour"},
+		{time.Hour, "1 hour"},
+		{6 * time.Hour, "6 hours"},
+		{24 * time.Hour, "24 hours"},
+		// A Free plan keeps three days, which is the case clamping produces.
+		{72 * time.Hour, "3 days"},
+		{7 * 24 * time.Hour, "7 days"},
+	}
+	for _, tc := range cases {
+		if got := formatWindow(tc.in); got != tc.want {
+			t.Errorf("formatWindow(%v) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestSortedCountriesRanksAndComputesShare(t *testing.T) {
+	in := map[string]*web.OriginCountry{
+		"US": {Code: "US", Requests: 25},
+		"DE": {Code: "DE", Requests: 75},
+	}
+	got := sortedCountries(in, 100)
+
+	if len(got) != 2 || got[0].Code != "DE" {
+		t.Fatalf("sortedCountries() = %+v, want the busiest country first", got)
+	}
+	if got[0].Share != 75 || got[1].Share != 25 {
+		t.Errorf("shares = %.1f/%.1f, want 75/25", got[0].Share, got[1].Share)
+	}
+}
+
+// Without any requests the share must stay zero rather than divide by zero.
+func TestSortedCountriesWithoutRequests(t *testing.T) {
+	got := sortedCountries(map[string]*web.OriginCountry{"DE": {Code: "DE"}}, 0)
+	if len(got) != 1 || got[0].Share != 0 {
+		t.Errorf("sortedCountries() = %+v, want a zero share", got)
+	}
+}
+
+func TestHostnameSetLowercases(t *testing.T) {
+	got := hostnameSet([]store.IngressRule{
+		{Hostname: "App.example.com"},
+		{Hostname: ""},
+	})
+	if len(got) != 1 || !got["app.example.com"] {
+		t.Errorf("hostnameSet() = %v, want only the lowercased hostname", got)
 	}
 }

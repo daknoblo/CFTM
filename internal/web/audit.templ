@@ -18,6 +18,20 @@ templ AuditPageView(l Layout, p AuditPage) {
 			</p>
 		}
 		@auditUnprotected(p.Unprotected)
+		if p.Origins.Enabled {
+			<div data-filter-scope>
+				<div class="mb-2 flex flex-wrap items-center gap-3">
+					<input
+						type="search"
+						class="input w-64"
+						placeholder="Filter country or hostname"
+						data-filter-input
+						aria-label="Filter request origins"
+					/>
+				</div>
+				@originCard("Request origins", p.Origins, p.OriginHosts)
+			</div>
+		}
 		@auditLogins(p)
 		@auditIntentionallyPublic(p.IntentionallyPublic)
 		@auditTokens(p.Tokens, p)

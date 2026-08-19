@@ -21,6 +21,9 @@ type AccessRequest struct {
 	CreatedAt  Timestamp `json:"created_at"`
 	IPAddress  string    `json:"ip_address"`
 	UserEmail  string    `json:"user_email"`
+	// CountryCode is filterable on this endpoint but absent from the
+	// documented response, so it is read opportunistically and may be empty.
+	CountryCode string `json:"country_code"`
 }
 
 // ListAccessRequests returns authentication events recorded since the given

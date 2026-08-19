@@ -42,6 +42,8 @@ type Config struct {
 	AccessLoginsEnabled bool
 	AccessLoginsWindow  time.Duration
 
+	OriginsEnabled bool
+
 	// ExpectedPublic names hostnames that are published without Access on
 	// purpose, keyed lowercase.
 	ExpectedPublic map[string]bool

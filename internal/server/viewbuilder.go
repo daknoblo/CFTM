@@ -298,6 +298,11 @@ func (s *Server) Dashboard(ctx context.Context) (web.Dashboard, error) {
 		d.Totals.Unprotected++
 	}
 
+	d.Origins, _ = s.originSummary(ctx, nil)
+	if len(d.Origins.Countries) > dashboardOriginCountries {
+		d.Origins.Countries = d.Origins.Countries[:dashboardOriginCountries]
+	}
+
 	return d, nil
 }
 
@@ -305,6 +310,121 @@ func (s *Server) Dashboard(ctx context.Context) (web.Dashboard, error) {
 func (s *Server) unprotectedOnly(snap snapshot) []store.IngressRule {
 	unexpected, _ := s.unprotected(snap)
 	return unexpected
+}
+
+// dashboardOriginCountries caps the tile, which is a glance and not a report.
+const dashboardOriginCountries = 6
+
+// originSummary folds the stored origin rows into the display model. Passing a
+// hostname set narrows it to one tunnel; the account-wide login rows carry no
+// hostname and drop out of that view by design.
+func (s *Server) originSummary(ctx context.Context, hosts map[string]bool) (web.Origins, []web.OriginBreakdown) {
+	out := web.Origins{Enabled: s.cfg.OriginsEnabled}
+	if !out.Enabled {
+		return out, nil
+	}
+
+	stored, err := s.store.RequestOrigins(ctx)
+	if err != nil {
+		s.log.Warn("reading request origins failed", "err", err)
+		return out, nil
+	}
+
+	byCountry := map[string]*web.OriginCountry{}
+	byHost := map[string]map[string]*web.OriginCountry{}
+	add := func(m map[string]*web.OriginCountry, o store.RequestOrigin) {
+		entry, ok := m[o.Country]
+		if !ok {
+			entry = &web.OriginCountry{Code: o.Country, Name: web.CountryName(o.Country)}
+			m[o.Country] = entry
+		}
+		entry.Allowed += o.Allowed
+		entry.Denied += o.Denied
+		entry.Requests += o.Requests
+	}
+
+	for _, o := range stored {
+		if hosts != nil && !hosts[o.Hostname] {
+			continue
+		}
+		out.Requests += o.Requests
+		out.Sampled = out.Sampled || o.Sampled
+		add(byCountry, o)
+
+		if o.Hostname == "" {
+			continue
+		}
+		if byHost[o.Hostname] == nil {
+			byHost[o.Hostname] = map[string]*web.OriginCountry{}
+		}
+		add(byHost[o.Hostname], o)
+	}
+
+	out.Countries = sortedCountries(byCountry, out.Requests)
+	out.Collected = s.collector.RequestOriginsAt(ctx)
+	out.Window = formatWindow(s.collector.OriginWindow(ctx))
+
+	breakdowns := make([]web.OriginBreakdown, 0, len(byHost))
+	for host, countries := range byHost {
+		b := web.OriginBreakdown{Hostname: host}
+		for _, c := range countries {
+			b.Requests += c.Requests
+		}
+		b.Countries = sortedCountries(countries, b.Requests)
+		breakdowns = append(breakdowns, b)
+	}
+	sort.Slice(breakdowns, func(i, j int) bool {
+		if breakdowns[i].Requests != breakdowns[j].Requests {
+			return breakdowns[i].Requests > breakdowns[j].Requests
+		}
+		return breakdowns[i].Hostname < breakdowns[j].Hostname
+	})
+	return out, breakdowns
+}
+
+func sortedCountries(m map[string]*web.OriginCountry, total int) []web.OriginCountry {
+	out := make([]web.OriginCountry, 0, len(m))
+	for _, c := range m {
+		if total > 0 {
+			c.Share = float64(c.Requests) / float64(total) * 100
+		}
+		out = append(out, *c)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Requests != out[j].Requests {
+			return out[i].Requests > out[j].Requests
+		}
+		return out[i].Code < out[j].Code
+	})
+	return out
+}
+
+// formatWindow names the period the summary covers, which matters because the
+// Cloudflare plan may have shortened it.
+func formatWindow(d time.Duration) string {
+	switch {
+	case d <= 0:
+		return ""
+	case d >= 48*time.Hour:
+		return fmt.Sprintf("%d days", int(d.Hours()/24))
+	case d >= 24*time.Hour:
+		return "24 hours"
+	case d >= 2*time.Hour:
+		return fmt.Sprintf("%d hours", int(d.Hours()))
+	default:
+		return "1 hour"
+	}
+}
+
+// hostnameSet lists the hostnames of one tunnel, lowercased.
+func hostnameSet(rules []store.IngressRule) map[string]bool {
+	out := map[string]bool{}
+	for _, r := range rules {
+		if r.Hostname != "" {
+			out[strings.ToLower(r.Hostname)] = true
+		}
+	}
+	return out
 }
 
 // TunnelDetail assembles the model of a single tunnel page.
@@ -362,6 +482,7 @@ func (s *Server) TunnelDetail(ctx context.Context, id string) (web.TunnelDetail,
 
 	names := tunnelNames(snap.tunnels)
 	detail.Ingress = s.toWebIngress(snap, snap.ingress[id], names)
+	detail.Origins, _ = s.originSummary(ctx, hostnameSet(snap.ingress[id]))
 	if rules := snap.ingress[id]; len(rules) > 0 {
 		detail.ConfigVer = rules[0].ConfigVersion
 	}
@@ -444,6 +565,8 @@ func (s *Server) AuditPage(ctx context.Context) (web.AuditPage, error) {
 		}
 		page.LoginTotals.Apps = len(page.Logins)
 	}
+
+	page.Origins, page.OriginHosts = s.originSummary(ctx, nil)
 
 	hostnames := map[string]bool{}
 	for _, rules := range snap.ingress {

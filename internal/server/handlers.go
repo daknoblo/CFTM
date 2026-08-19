@@ -145,6 +145,12 @@ var permissionAreas = []struct {
 		"CFTM cannot tell whether Cloudflare would alert you about a tunnel"},
 	{collector.CapAccessLogins, "Access authentication log", true,
 		"No login or denial figures per application"},
+	{collector.CapZones, "Zone list", true,
+		"Request origins cannot be mapped onto a zone"},
+	{collector.CapZoneAnalytics, "Zone traffic analytics", true,
+		"No origin countries for traffic an Access bypass policy waves through"},
+	{collector.CapLoginAnalytics, "Access login analytics", true,
+		"No origin countries for login attempts"},
 }
 
 // permissions reports what the token was actually allowed to read. The states
@@ -199,6 +205,10 @@ func (s *Server) switchedOff(key string) (string, bool) {
 	case collector.CapAccessLogins:
 		if !s.cfg.AccessLoginsEnabled {
 			return "CFTM_ACCESS_LOGINS_ENABLED is false", true
+		}
+	case collector.CapZones, collector.CapZoneAnalytics, collector.CapLoginAnalytics:
+		if !s.cfg.OriginsEnabled {
+			return "CFTM_ORIGINS_ENABLED is false", true
 		}
 	}
 	return "", false

@@ -21,6 +21,9 @@ type Config struct {
 	PollInterval       time.Duration
 	ConfigRefreshEvery int
 	RetentionDays      int
+	// ExpectedCountries names the origins that are normal here, keyed
+	// lowercase, so only a genuinely new one is worth an event.
+	ExpectedCountries map[string]bool
 }
 
 // Status is the in-memory view of the collector's own health.

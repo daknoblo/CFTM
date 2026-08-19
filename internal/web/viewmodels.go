@@ -146,6 +146,8 @@ type TunnelDetail struct {
 	Ingress     []Ingress    `json:"ingress"`
 	Uptimes     []Uptime     `json:"uptimes"`
 	Events      []Event      `json:"events"`
+	// Origins are the request origins of this tunnel's hostnames.
+	Origins Origins `json:"origins"`
 }
 
 // Event is one entry of the event log.
@@ -182,6 +184,39 @@ type Dashboard struct {
 	Tunnels []TunnelCard `json:"tunnels"`
 	Poll    PollStatus   `json:"poll"`
 	Totals  Totals       `json:"totals"`
+	// Origins are the busiest request origins, empty when the feature is off.
+	Origins Origins `json:"origins"`
+}
+
+// OriginCountry is the request summary of one country.
+type OriginCountry struct {
+	Code     string `json:"code"`
+	Name     string `json:"name"`
+	Allowed  int    `json:"allowed"`
+	Denied   int    `json:"denied"`
+	Requests int    `json:"requests"`
+	// Share is the percentage of all counted requests, for the bar geometry.
+	Share float64 `json:"share"`
+}
+
+// OriginBreakdown lists the countries that reached one hostname.
+type OriginBreakdown struct {
+	Hostname  string
+	Requests  int
+	Countries []OriginCountry
+}
+
+// Origins is the shared header of every origin display.
+type Origins struct {
+	Enabled   bool            `json:"enabled"`
+	Countries []OriginCountry `json:"countries"`
+	Requests  int             `json:"requests"`
+	Collected time.Time       `json:"collectedAt,omitzero"`
+	// Window is the period actually covered, which the plan may have cut
+	// shorter than the configured one.
+	Window string `json:"window,omitempty"`
+	// Sampled marks figures the edge estimated rather than counted.
+	Sampled bool `json:"sampled"`
 }
 
 // Totals are the account-wide counters shown above the cards.
@@ -220,6 +255,10 @@ type AuditPage struct {
 	LoginsAt      time.Time
 	LoginsEnabled bool
 	LoginTotals   LoginTotals
+	// Origins summarizes where the requests came from, when it is collected.
+	Origins Origins
+	// OriginHosts breaks the same figures down per hostname.
+	OriginHosts []OriginBreakdown
 	// ProbeTokenKnown is false when a service token is configured that this
 	// account does not have, which is the usual result of rotating it wrong.
 	ProbeTokenConfigured bool

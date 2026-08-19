@@ -5,6 +5,7 @@ package demo
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -48,8 +49,96 @@ func Handler(now time.Time) http.Handler {
 	mux.HandleFunc("GET /accounts/"+AccountID+"/access/logs/access_requests", func(w http.ResponseWriter, _ *http.Request) {
 		writeResult(w, accessRequests(now))
 	})
+	mux.HandleFunc("GET /zones", func(w http.ResponseWriter, _ *http.Request) {
+		writeResult(w, zones())
+	})
+	mux.HandleFunc("POST /graphql", func(w http.ResponseWriter, r *http.Request) {
+		writeGraphQL(w, r)
+	})
 
 	return mux
+}
+
+func zones() []map[string]any {
+	return []map[string]any{{
+		"id": "7d1e4c8b93f2a05e6c4b1a9d8e3f27c0", "name": "example.com",
+		"status": "active", "plan": map[string]any{"name": "Free Website"},
+	}}
+}
+
+// writeGraphQL answers the analytics queries. The dataset is picked from the
+// query text, which is how the single endpoint serves both of them.
+func writeGraphQL(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Query string `json:"query"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	var data any
+	switch {
+	case strings.Contains(req.Query, "settings"):
+		data = map[string]any{"viewer": map[string]any{"zones": []map[string]any{{
+			"settings": map[string]any{"httpRequestsAdaptiveGroups": map[string]any{
+				// Three days is what a Free plan keeps, which is exactly the
+				// case the window clamping exists for.
+				"maxDuration": 259200, "maxPageSize": 10000, "notOlderThan": 259200,
+			}},
+		}}}}
+	case strings.Contains(req.Query, "accessLoginRequestsAdaptiveGroups"):
+		data = map[string]any{"viewer": map[string]any{"accounts": []map[string]any{{
+			"accessLoginRequestsAdaptiveGroups": loginGroups(),
+		}}}}
+	default:
+		data = map[string]any{"viewer": map[string]any{"zones": []map[string]any{{
+			"httpRequestsAdaptiveGroups": httpGroups(),
+		}}}}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": data, "errors": nil})
+}
+
+// httpGroups fabricates traffic that is mostly local with a visible tail from
+// elsewhere, including refusals, so the display has something to say.
+func httpGroups() []map[string]any {
+	group := func(country, host, path string, status, count, sample int) map[string]any {
+		return map[string]any{
+			"count": count,
+			"avg":   map[string]any{"sampleInterval": sample},
+			"dimensions": map[string]any{
+				"clientCountryName": country, "clientRequestHTTPHost": host,
+				"clientRequestPath": path, "edgeResponseStatus": status,
+			},
+		}
+	}
+	return []map[string]any{
+		group("DE", "git.example.com", "/", 200, 4820, 1),
+		group("DE", "wiki.example.com", "/", 200, 2140, 1),
+		group("DE", "status.example.com", "/", 200, 1960, 1),
+		group("AT", "wiki.example.com", "/", 200, 410, 1),
+		group("CH", "git.example.com", "/", 200, 260, 1),
+		group("US", "status.example.com", "/", 200, 180, 10),
+		group("US", "vault.example.com", "/", 403, 95, 10),
+		group("CN", "vault.example.com", "/", 403, 74, 10),
+		group("RU", "mail.example.com", "/", 403, 51, 10),
+		group("NL", "media.example.com", "/", 200, 38, 1),
+		group("", "preview.example.com", "/", 200, 12, 1),
+	}
+}
+
+func loginGroups() []map[string]any {
+	group := func(country string, success, count int) map[string]any {
+		return map[string]any{
+			"count":      count,
+			"dimensions": map[string]any{"country": country, "isSuccessfulLogin": success},
+		}
+	}
+	return []map[string]any{
+		group("DE", 1, 214),
+		group("AT", 1, 18),
+		group("US", 0, 26),
+		group("CN", 0, 11),
+	}
 }
 
 // accessRequests fabricates an authentication log, including a run of denials
