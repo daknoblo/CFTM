@@ -3,7 +3,7 @@
 # ---- Build stage ----
 # Run the Go compiler on the runner's NATIVE architecture and cross-compile for
 # the requested target platform. CGO is off and modernc SQLite is pure Go.
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 WORKDIR /src
 ENV CGO_ENABLED=0
 
