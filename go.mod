@@ -4,7 +4,7 @@ go 1.26.6
 
 require (
 	github.com/a-h/templ v0.3.1020
-	modernc.org/sqlite v1.56.0
+	modernc.org/sqlite v1.57.0
 )
 
 require (
