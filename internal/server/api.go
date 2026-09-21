@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -41,7 +42,11 @@ func (s *Server) handleAPITunnels(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAPITunnel(w http.ResponseWriter, r *http.Request) {
-	detail, found, err := s.TunnelDetail(r.Context(), r.PathValue("id"))
+	detail, found, err := s.tunnelDetail(r.Context(), r.PathValue("id"), r.URL.Query().Get("hostname"))
+	if errors.Is(err, errQualityHostname) {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	if err != nil {
 		s.serverError(w, r, "building tunnel detail", err)
 		return

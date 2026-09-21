@@ -53,6 +53,10 @@ func Seed(ctx context.Context, st *store.Store, log *slog.Logger) (*collector.Co
 	}
 
 	coll.PollOnce(ctx)
+	if err := backfillProbes(ctx, st, now); err != nil {
+		api.Close()
+		return nil, nil, fmt.Errorf("backfill probes: %w", err)
+	}
 	if err := coll.AuditAccess(ctx); err != nil {
 		api.Close()
 		return nil, nil, fmt.Errorf("audit access: %w", err)
@@ -82,6 +86,35 @@ func Seed(ctx context.Context, st *store.Store, log *slog.Logger) (*collector.Co
 	}
 
 	return coll, api.Close, nil
+}
+
+func backfillProbes(ctx context.Context, st *store.Store, now time.Time) error {
+	rules, err := st.Ingress(ctx, "")
+	if err != nil {
+		return err
+	}
+	var results []store.ProbeResult
+	for h, target := range prober.Targets(rules, nil) {
+		for i := 1; i < 288; i++ {
+			if i >= 130 && i < 140 {
+				continue
+			}
+			r := store.ProbeResult{
+				Hostname: target.Hostname, CheckedAt: now.Add(time.Duration(i-288) * 5 * time.Minute),
+				Class: prober.ClassOK, StatusCode: 200, LatencyMS: 45 + (i*17+h*31)%90,
+			}
+			switch {
+			case i >= 95 && i < 100:
+				r.Class, r.StatusCode, r.LatencyMS = prober.ClassTimeout, 0, 10000
+			case i >= 190 && i < 195:
+				r.Class = prober.ClassEdgeCached
+			case i%41 == 0:
+				r.LatencyMS += 300
+			}
+			results = append(results, r)
+		}
+	}
+	return st.AddProbeResults(ctx, results)
 }
 
 // backfillHistory writes a day of status transitions so the heartbeat bar and

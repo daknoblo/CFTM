@@ -142,9 +142,8 @@ Without a service token, protected hostnames report `access_challenge`: the
 Cloudflare edge answered, but the request never traversed the tunnel. That
 still proves DNS and the edge work, it just says nothing about the origin.
 
-Hostnames **without** an Access application need no token at all: nothing
-intercepts the request, so the origin answers directly and the result is a real
-end-to-end check either way. The service token is deliberately withheld from
+Hostnames **without** an Access application need no token at all. Responses
+served from Cloudflare's cache do not verify the origin. The service token is deliberately withheld from
 them — with no Access at the edge to consume it, cloudflared would forward the
 credential to the origin like any other header. This only takes effect once an
 Access audit has succeeded; until then every target carries the token, because
@@ -157,12 +156,52 @@ an empty inventory cannot be told apart from an account with no applications.
 | `ok` | The origin answered; the whole path works |
 | `access_challenge` | Access intercepted at the edge, origin untested |
 | `access_denied` | The service token is not authorized for this application |
+| `edge_cached` | Cloudflare served/revalidated a cached response; excluded from tunnel latency statistics |
 | `tunnel_down` | No connector available (Cloudflare error 1033) |
 | `origin_error` | Tunnel up, origin unreachable (502, 504, 520–524) |
 | `timeout`, `dns_error`, `tls_error`, `http_error` | Transport failures |
 
 A 404 or 500 from the application counts as `ok`: the tunnel delivered the
 request, what the application answers is not the monitor's business.
+
+### Response time and stability
+
+Each tunnel detail page has a 24-hour chart below the availability monitor.
+Choose an HTTP/HTTPS hostname and press **Show**; hostnames are never averaged
+together. The panel refreshes from SQLite every ten seconds without making
+Cloudflare API calls or triggering probes.
+
+Enable `CFTM_PROBE_ENABLED=true` to collect measurements. The default interval
+remains `5m`; `CFTM_PROBE_INTERVAL=60s` gives finer sampling at the cost of more
+requests to each application. No historical samples can be reconstructed when
+probing was disabled.
+
+- Response time runs from request creation until response headers arrive,
+  including connection setup when needed and application processing.
+- Median and nearest-rank P95 use all `ok` samples in the last 24 hours.
+- Mean variation is the average absolute change between consecutive `ok`
+  samples, not network jitter. Failures, excluded responses and gaps longer
+  than 1.5 configured probe intervals break pairs and chart connections.
+- The chart uses at most 288 five-minute buckets. Lines show means and vertical
+  whiskers preserve minimum/maximum spikes. Short interruptions inside a bucket
+  are marked and prevent connections to adjacent buckets.
+- Failed-check percentage is failures / (`ok` + failures). Access challenges,
+  denials, known cache responses and unknown classes are excluded. Timeouts are
+  markers, not latency values. Missing checks do not count as packet loss.
+- No data is shown as a gap or an unavailable statistic, never as zero.
+  A last sample older than 1.5 intervals is marked stale. Changing the interval
+  also changes the gap threshold used to display existing history.
+
+`CF-Cache-Status` values `HIT`, `STALE`, `UPDATING` and `REVALIDATED` are classified
+as `edge_cached`, not `ok`. Older stored `ok` samples cannot retrospectively be
+checked for cache hits. Responses without recognizable cache/Access headers
+may still be served by an intermediary; this is an HTTP observation, not proof
+of physical-link quality. History follows the hostname's current tunnel
+assignment; it cannot attribute a request to a particular connector.
+
+The measurement includes the CFTM host's route to Cloudflare. Real link RTT,
+network jitter and packet loss require a separate measurement source at the
+tunnel site.
 
 ## Request origins
 

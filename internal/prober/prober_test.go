@@ -93,6 +93,15 @@ func TestClassify(t *testing.T) {
 		{"origin answered", http.StatusOK, nil, "hello", ClassOK},
 		{"origin 404 is still a working path", http.StatusNotFound, nil, "", ClassOK},
 		{"origin 500 is the app's problem", http.StatusInternalServerError, nil, "", ClassOK},
+		{"cached response", http.StatusOK, map[string]string{"CF-Cache-Status": "HIT"}, "", ClassEdgeCached},
+		{"stale response", http.StatusOK, map[string]string{"CF-Cache-Status": "STALE"}, "", ClassEdgeCached},
+		{"background refresh", http.StatusOK, map[string]string{"CF-Cache-Status": "UPDATING"}, "", ClassEdgeCached},
+		{"revalidated cache", http.StatusOK, map[string]string{"CF-Cache-Status": "REVALIDATED"}, "", ClassEdgeCached},
+		{"normalized cache header", http.StatusOK, map[string]string{"CF-Cache-Status": " hit "}, "", ClassEdgeCached},
+		{"cache miss", http.StatusOK, map[string]string{"CF-Cache-Status": "MISS"}, "", ClassOK},
+		{"dynamic response", http.StatusOK, map[string]string{"CF-Cache-Status": "DYNAMIC"}, "", ClassOK},
+		{"cache bypass", http.StatusOK, map[string]string{"CF-Cache-Status": "BYPASS"}, "", ClassOK},
+		{"expired cache", http.StatusOK, map[string]string{"CF-Cache-Status": "EXPIRED"}, "", ClassOK},
 		{
 			name:    "access login redirect",
 			status:  http.StatusFound,
@@ -174,10 +183,13 @@ func TestClassHelpers(t *testing.T) {
 			t.Errorf("IsFailure(%q) = false, want true", class)
 		}
 	}
-	for _, class := range []string{ClassOK, ClassAccessChallenge, ClassAccessDenied} {
+	for _, class := range []string{ClassOK, ClassAccessChallenge, ClassAccessDenied, ClassEdgeCached} {
 		if IsFailure(class) {
 			t.Errorf("IsFailure(%q) = true, want false", class)
 		}
+	}
+	if IsHealthy(ClassEdgeCached) {
+		t.Error("got cached response healthy, want unverified")
 	}
 }
 

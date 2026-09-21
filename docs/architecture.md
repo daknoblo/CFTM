@@ -139,6 +139,20 @@ The heartbeat bar splits the last 24 hours into 48 buckets and renders the
 **worst** status seen in each, so a five-minute outage stays visible instead of
 being averaged away.
 
+## HTTP quality history
+
+Probe history is queried through the existing `(hostname, checked_at)` index
+for the selected hostname in `(now - 24h, now]`. The server validates selection
+against the tunnel's probeable ingress hostnames, computes statistics from raw
+samples and emits bounded, server-rendered SVG geometry. No chart library,
+external JavaScript, new database schema or extra Cloudflare API call is needed.
+
+`GET /partials/tunnels/{id}/quality?hostname=...` refreshes only this panel.
+The same selection works on the tunnel page and `GET /api/tunnels/{id}`; the
+JSON `quality` object exposes counts, timestamps and nullable statistics.
+Missing statistics are `null`, not zero. Access/cache observations remain
+visible as excluded markers without inflating either success or failure rates.
+
 ## Security
 
 - No built-in authentication; Cloudflare Access is the gate. The dashboard

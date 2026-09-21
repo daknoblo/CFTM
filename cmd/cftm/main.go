@@ -100,6 +100,7 @@ func run() error {
 		PollInterval:        cfg.PollInterval,
 		RetentionDays:       cfg.RetentionDays,
 		ProbeEnabled:        cfg.ProbeEnabled,
+		ProbeInterval:       cfg.ProbeInterval,
 		ProbeToken:          cfg.HasAccessServiceToken(),
 		ProbeClientID:       cfg.AccessClientID,
 		AuditEnabled:        cfg.AccessAuditEnabled,

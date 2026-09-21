@@ -51,4 +51,15 @@
   document.body.addEventListener("htmx:afterSwap", function (event) {
     init(event.target);
   });
+
+  ["htmx:responseError", "htmx:sendError", "htmx:timeout"].forEach(function (name) {
+    document.body.addEventListener(name, function (event) {
+      if (event.detail.elt && event.detail.elt.id === "tunnel-quality") {
+        var message = event.detail.elt.querySelector("[data-quality-error]");
+        if (message) {
+          message.hidden = false;
+        }
+      }
+    });
+  });
 })();

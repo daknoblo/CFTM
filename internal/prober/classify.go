@@ -17,6 +17,8 @@ const (
 	ClassAccessChallenge = "access_challenge"
 	// ClassAccessDenied means the service token is not authorized for this app.
 	ClassAccessDenied = "access_denied"
+	// ClassEdgeCached is a cached response, not evidence of tunnel traversal.
+	ClassEdgeCached = "edge_cached"
 	// ClassTunnelDown means no connector is available (Cloudflare error 1033).
 	ClassTunnelDown = "tunnel_down"
 	// ClassOriginError means the tunnel is up but the origin did not answer.
@@ -67,6 +69,11 @@ func Classify(resp *http.Response, body []byte) string {
 		if hasAccessMarkers(resp, body) {
 			return ClassAccessDenied
 		}
+	}
+
+	switch strings.ToUpper(strings.TrimSpace(resp.Header.Get("CF-Cache-Status"))) {
+	case "HIT", "STALE", "UPDATING", "REVALIDATED":
+		return ClassEdgeCached
 	}
 
 	// Any other status came from the origin, so the tunnel is working. A 404 or

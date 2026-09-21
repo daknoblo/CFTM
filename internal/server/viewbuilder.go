@@ -212,7 +212,7 @@ func probeClassRank(class string) int {
 		return 3
 	case prober.ClassAccessDenied:
 		return 2
-	case prober.ClassAccessChallenge:
+	case prober.ClassAccessChallenge, prober.ClassEdgeCached:
 		return 1
 	default:
 		return 0
@@ -429,6 +429,10 @@ func hostnameSet(rules []store.IngressRule) map[string]bool {
 
 // TunnelDetail assembles the model of a single tunnel page.
 func (s *Server) TunnelDetail(ctx context.Context, id string) (web.TunnelDetail, bool, error) {
+	return s.tunnelDetail(ctx, id, "")
+}
+
+func (s *Server) tunnelDetail(ctx context.Context, id, hostname string) (web.TunnelDetail, bool, error) {
 	snap, err := s.loadSnapshot(ctx)
 	if err != nil {
 		return web.TunnelDetail{}, false, err
@@ -482,6 +486,10 @@ func (s *Server) TunnelDetail(ctx context.Context, id string) (web.TunnelDetail,
 
 	names := tunnelNames(snap.tunnels)
 	detail.Ingress = s.toWebIngress(snap, snap.ingress[id], names)
+	detail.Quality, err = s.tunnelQuality(ctx, id, hostname, snap.ingress[id], snap.now)
+	if err != nil {
+		return web.TunnelDetail{}, false, err
+	}
 	detail.Origins, _ = s.originSummary(ctx, hostnameSet(snap.ingress[id]))
 	if rules := snap.ingress[id]; len(rules) > 0 {
 		detail.ConfigVer = rules[0].ConfigVersion

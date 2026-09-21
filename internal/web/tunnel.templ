@@ -12,6 +12,7 @@ templ TunnelPage(l Layout, d TunnelDetail) {
 		</div>
 		<div class="mono mb-6">{ d.Card.ID }</div>
 		@tunnelUptimes(d)
+		@TunnelQualityCard(d.Quality)
 		@tunnelFacts(d)
 		@tunnelFindings(d)
 		@tunnelConnectors(d.Connectors)

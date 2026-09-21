@@ -42,6 +42,9 @@ tokens expire.
 - **Tunnel health** — status (`healthy` / `degraded` / `down` / `inactive`),
   uptime over 24 hours, 7 days and 30 days, plus a heartbeat bar that keeps
   short outages visible instead of averaging them away.
+- **Response time and stability** — per-hostname 24-hour charts under the tunnel
+  availability monitor, with median/P95 HTTP response time, response variation,
+  failed checks and visible gaps. Uses optional HTTP probes, not ICMP ping.
 - **Connectors** — every running `cloudflared` instance with its version,
   architecture, feature flags and the configuration version it has applied.
 - **Edge connections** — the four QUIC connections a healthy tunnel maintains,

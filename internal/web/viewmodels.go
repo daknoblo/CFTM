@@ -147,7 +147,8 @@ type TunnelDetail struct {
 	Uptimes     []Uptime     `json:"uptimes"`
 	Events      []Event      `json:"events"`
 	// Origins are the request origins of this tunnel's hostnames.
-	Origins Origins `json:"origins"`
+	Origins Origins       `json:"origins"`
+	Quality TunnelQuality `json:"quality"`
 }
 
 // Event is one entry of the event log.
@@ -422,7 +423,7 @@ func ProbeBadgeClass(class string) string {
 	switch class {
 	case "ok":
 		return "badge badge-ok"
-	case "access_challenge", "access_denied":
+	case "access_challenge", "access_denied", "edge_cached":
 		return "badge badge-muted"
 	case "":
 		return "badge"

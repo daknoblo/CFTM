@@ -26,6 +26,7 @@ type Config struct {
 	PollInterval  time.Duration
 	RetentionDays int
 	ProbeEnabled  bool
+	ProbeInterval time.Duration
 	ProbeToken    bool
 	// ProbeClientID is the Access client ID probing is configured with. It is an
 	// identifier, not a secret; the matching client secret never leaves the
@@ -68,6 +69,9 @@ type Server struct {
 
 // New wires a Server. The prober may be nil when probing is disabled.
 func New(st *store.Store, coll *collector.Collector, p collector.Prober, logs *logbuf.Buffer, cfg Config, log *slog.Logger) (*Server, error) {
+	if cfg.ProbeInterval <= 0 {
+		cfg.ProbeInterval = 5 * time.Minute
+	}
 	staticSub, err := fs.Sub(web.StaticFS, "assets/static")
 	if err != nil {
 		return nil, err
@@ -117,6 +121,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /partials/poll-status", s.handlePartialPollStatus)
 	mux.HandleFunc("GET /partials/events", s.handlePartialEvents)
 	mux.HandleFunc("GET /partials/log", s.handlePartialLog)
+	mux.HandleFunc("GET /partials/tunnels/{id}/quality", s.handlePartialQuality)
 
 	mux.HandleFunc("POST /refresh", s.handleRefresh)
 	mux.HandleFunc("POST /refresh-all", s.handleRefreshAll)

@@ -64,6 +64,7 @@ func run(out, base, addr string) error {
 		PollInterval:        30 * time.Second,
 		RetentionDays:       90,
 		ProbeEnabled:        true,
+		ProbeInterval:       5 * time.Minute,
 		ProbeToken:          true,
 		ProbeClientID:       demo.DemoClientID,
 		AuditEnabled:        true,
