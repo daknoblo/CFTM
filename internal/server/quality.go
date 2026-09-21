@@ -38,7 +38,7 @@ func (s *Server) tunnelQuality(ctx context.Context, id, hostname string, rules [
 	} else if len(q.Hostnames) > 0 {
 		q.Hostname = q.Hostnames[0]
 	}
-	q.RefreshURL = "/partials/tunnels/" + url.PathEscape(id) + "/quality?hostname=" + url.QueryEscape(q.Hostname)
+	q.RefreshURL = "/partials/tunnels/" + url.PathEscape(id) + "/quality"
 	if q.Hostname == "" {
 		return q, nil
 	}
@@ -79,6 +79,7 @@ func (s *Server) handlePartialQuality(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, "building quality chart", err)
 		return
 	}
+	w.Header().Set("HX-Replace-Url", "/tunnels/"+url.PathEscape(id)+"?hostname="+url.QueryEscape(q.Hostname))
 	s.render(w, r, web.TunnelQualityCard(q))
 }
 
@@ -169,44 +170,55 @@ func qualityGeometry(buckets [qualityBuckets]qualityBucket, maxGap time.Duration
 		}
 	}
 	chart.MaxMS = math.Ceil(chart.MaxMS/10) * 10
-	y := func(ms float64) string { return fmt.Sprintf("%.2f", 190-170*ms/chart.MaxMS) }
+	y := func(ms float64) float64 { return 190 - 170*ms/chart.MaxMS }
 	var latencyPath, variationPath strings.Builder
 	var previous qualityBucket
+	var previousX, previousY, previousVariationY float64
 	for i, b := range buckets {
 		if b.count+b.failures+b.excluded == 0 {
 			previous = qualityBucket{}
 			continue
 		}
+		x := 50 + (float64(i)+0.5)*900/qualityBuckets
+		start := since.Add(time.Duration(i) * 5 * time.Minute)
 		p := web.QualityPoint{
-			X:          fmt.Sprintf("%.2f", 50+(float64(i)+0.5)*900/qualityBuckets),
+			X:     fmt.Sprintf("%.2f", x),
+			HitX:  fmt.Sprintf("%.4f", 50+float64(i)*900/qualityBuckets),
+			Since: start, Until: start.Add(5 * time.Minute),
 			HasLatency: b.count > 0, HasVariation: b.pairs > 0,
 			Failures: b.failures, Excluded: b.excluded,
-			Label: fmt.Sprintf("%s UTC: %d responses, %d failures, %d excluded",
-				since.Add(time.Duration(i)*5*time.Minute).UTC().Format("Jan 02 15:04"), b.count, b.failures, b.excluded),
+			Label:    fmt.Sprintf("%d responses / %d failed / %d excluded", b.count, b.failures, b.excluded),
+			Response: "Response: unavailable", Variation: "Variation: unavailable",
 		}
 		connect := previous.count > 0 && !previous.broken && !b.broken && b.first.Sub(previous.last) <= maxGap
-		command := "M"
-		if connect {
-			command = "L"
-		}
 		if p.HasLatency {
 			mean := b.sum / float64(b.count)
-			p.Y, p.LowY, p.HighY = y(mean), y(b.low), y(b.high)
-			p.Label += fmt.Sprintf("; mean %.1f ms, min %.1f ms, max %.1f ms", mean, b.low, b.high)
-			fmt.Fprintf(&latencyPath, "%s%s,%s ", command, p.X, p.Y)
+			p.Y, p.LowY, p.HighY = fmt.Sprintf("%.2f", y(mean)), fmt.Sprintf("%.2f", y(b.low)), fmt.Sprintf("%.2f", y(b.high))
+			p.Response = fmt.Sprintf("Response: %.1f ms (min %.1f / max %.1f)", mean, b.low, b.high)
+			appendQualityCurve(&latencyPath, previousX, previousY, x, y(mean), connect)
+			previousY = y(mean)
 		}
 		if p.HasVariation {
 			ms := b.variation / float64(b.pairs)
-			p.VariationY = y(ms)
-			p.Label += fmt.Sprintf("; mean variation %.1f ms", ms)
-			if previous.pairs == 0 {
-				command = "M"
-			}
-			fmt.Fprintf(&variationPath, "%s%s,%s ", command, p.X, p.VariationY)
+			p.VariationY = fmt.Sprintf("%.2f", y(ms))
+			p.Variation = fmt.Sprintf("Variation: %.1f ms", ms)
+			appendQualityCurve(&variationPath, previousX, previousVariationY, x, y(ms), connect && previous.pairs > 0)
+			previousVariationY = y(ms)
 		}
 		chart.Points = append(chart.Points, p)
 		previous = b
+		previousX = x
 	}
 	chart.LatencyPath, chart.VariationPath = latencyPath.String(), variationPath.String()
 	return chart
+}
+
+func appendQualityCurve(path *strings.Builder, fromX, fromY, x, y float64, connect bool) {
+	if !connect {
+		fmt.Fprintf(path, "M%.2f,%.2f ", x, y)
+		return
+	}
+	// Horizontal handles round corners without overshooting either measured value.
+	handle := (x - fromX) * 0.2
+	fmt.Fprintf(path, "C%.2f,%.2f %.2f,%.2f %.2f,%.2f ", fromX+handle, fromY, x-handle, y, x, y)
 }

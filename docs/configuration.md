@@ -167,8 +167,9 @@ request, what the application answers is not the monitor's business.
 ### Response time and stability
 
 Each tunnel detail page has a 24-hour chart below the availability monitor.
-Choose an HTTP/HTTPS hostname and press **Show**; hostnames are never averaged
-together. The panel refreshes from SQLite every ten seconds without making
+Selecting an HTTP/HTTPS hostname switches the chart immediately; hostnames are
+never averaged together. Without JavaScript, use the fallback **Apply** button.
+The panel refreshes from SQLite every ten seconds without making
 Cloudflare API calls or triggering probes.
 
 Enable `CFTM_PROBE_ENABLED=true` to collect measurements. The default interval
@@ -185,6 +186,11 @@ probing was disabled.
 - The chart uses at most 288 five-minute buckets. Lines show means and vertical
   whiskers preserve minimum/maximum spikes. Short interruptions inside a bucket
   are marked and prevent connections to adjacent buckets.
+  Curves round the corners without changing values, overshooting peaks or
+  bridging gaps. The fine grid marks hours and ten vertical scale divisions.
+  Hover over a bucket to see its time range in your browser's local timezone,
+  response mean/min/max, variation and check counts. Keyboard users can focus
+  the chart and inspect buckets with the arrow keys; Escape hides the tooltip.
 - Failed-check percentage is failures / (`ok` + failures). Access challenges,
   denials, known cache responses and unknown classes are excluded. Timeouts are
   markers, not latency values. Missing checks do not count as packet loss.

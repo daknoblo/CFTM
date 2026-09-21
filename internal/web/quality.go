@@ -35,7 +35,10 @@ type QualityChart struct {
 
 type QualityPoint struct {
 	X, Y, LowY, HighY, VariationY string
+	HitX                          string
+	Since, Until                  time.Time
 	HasLatency, HasVariation      bool
 	Failures, Excluded            int
 	Label                         string
+	Response, Variation           string
 }

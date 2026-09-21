@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"strings"
@@ -121,7 +122,7 @@ func TestQualityDoesNotConnectAcrossWithinBucketFailures(t *testing.T) {
 		samples = append(samples, store.ProbeResult{CheckedAt: q.Since.Add(time.Duration(minute) * time.Minute), Class: class, LatencyMS: 10})
 	}
 	buildQuality(&q, samples, 5*time.Minute)
-	if strings.Contains(q.Chart.LatencyPath, "L") {
+	if strings.ContainsAny(q.Chart.LatencyPath, "LC") {
 		t.Errorf("got path %q, want no lines across interrupted bucket", q.Chart.LatencyPath)
 	}
 }
@@ -140,9 +141,20 @@ func TestQualityHTTPAndHostSelection(t *testing.T) {
 	}
 	rec := get(t, h, "/tunnels/t1")
 	body := rec.Body.String()
-	for _, want := range []string{"Response time &amp; stability", "150.0 ms", "100.0 ms", "hx-trigger=\"every 10s\"", "quality-host-form", "data-quality-error"} {
+	for _, want := range []string{
+		"Response time &amp; stability", "150.0 ms", "100.0 ms",
+		`hx-trigger="every 10s, change"`, `hx-include="this"`, `hx-sync="this:replace"`,
+		"quality-host-form", "data-quality-error", "data-quality-grid", "data-quality-point",
+		"data-quality-tooltip", "data-response=", "data-since=", "data-until=",
+		`datetime="` + web.FormatTime(now.Truncate(time.Second)) + `"`,
+	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("got body missing %q, want quality panel content", want)
+		}
+	}
+	for _, unwanted := range []string{">Show</button>", "@timestamp(", "Five-minute buckets; whiskers preserve spikes."} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("got obsolete markup %q, want simplified chart", unwanted)
 		}
 	}
 	if strings.Index(body, `id="tunnel-quality"`) < strings.Index(body, "One segment per half hour") {
@@ -158,6 +170,11 @@ func TestQualityHTTPAndHostSelection(t *testing.T) {
 		}
 		if strings.Contains(rec.Body.String(), sentinelToken) {
 			t.Errorf("GET %s: got API credential in response, want no secrets", path)
+		}
+		if strings.HasPrefix(path, "/partials/") {
+			if got := rec.Header().Get("HX-Replace-Url"); got != "/tunnels/t1?hostname=public-app.example.com" {
+				t.Errorf("got replacement URL %q, want selected hostname on tunnel page", got)
+			}
 		}
 	}
 	for _, path := range []string{"/tunnels/t1", "/api/tunnels/t1", "/partials/tunnels/t1/quality"} {
@@ -200,5 +217,55 @@ func TestQualityUnavailableStatesAndErrors(t *testing.T) {
 	}
 	if rec := get(t, h, "/partials/tunnels/t1/quality"); rec.Code != http.StatusInternalServerError {
 		t.Errorf("got database failure status %d, want 500", rec.Code)
+	}
+}
+
+func TestQualityCurvePreservesValues(t *testing.T) {
+	for _, ys := range [][2]float64{{190, 20}, {20, 190}, {105, 105}} {
+		var path strings.Builder
+		appendQualityCurve(&path, 50, ys[0], 100, ys[1], true)
+		var x1, y1, x2, y2, x, y float64
+		if n, err := fmt.Sscanf(path.String(), "C%f,%f %f,%f %f,%f", &x1, &y1, &x2, &y2, &x, &y); err != nil || n != 6 {
+			t.Fatalf("got path %q, want a cubic curve: %v", path.String(), err)
+		}
+		if x1 != 60 || x2 != 90 || x != 100 || y1 != ys[0] || y2 != ys[1] || y != ys[1] {
+			t.Fatalf("got curve %q, want horizontal handles within the measured endpoints", path.String())
+		}
+		for i := range 101 {
+			at := float64(i) / 100
+			inverse := 1 - at
+			value := inverse*inverse*inverse*ys[0] + 3*inverse*inverse*at*y1 + 3*inverse*at*at*y2 + at*at*at*y
+			if value < min(ys[0], ys[1])-0.0001 || value > max(ys[0], ys[1])+0.0001 {
+				t.Errorf("got interpolated value %v, want no overshoot between %v", value, ys)
+			}
+		}
+	}
+	var gap strings.Builder
+	appendQualityCurve(&gap, 50, 190, 100, 20, false)
+	if got := gap.String(); got != "M100.00,20.00 " {
+		t.Errorf("got gap path %q, want move without interpolation", got)
+	}
+}
+
+func TestQualityTooltipBucketValues(t *testing.T) {
+	since := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+	q := web.TunnelQuality{Since: since, Until: since.Add(24 * time.Hour)}
+	buildQuality(&q, []store.ProbeResult{
+		{CheckedAt: since.Add(time.Minute), Class: prober.ClassOK, LatencyMS: 10},
+		{CheckedAt: since.Add(2 * time.Minute), Class: prober.ClassOK, LatencyMS: 30},
+		{CheckedAt: since.Add(6 * time.Minute), Class: prober.ClassTimeout, LatencyMS: 10000},
+	}, time.Minute)
+	if len(q.Chart.Points) != 2 {
+		t.Fatalf("got %d points, want 2", len(q.Chart.Points))
+	}
+	first, second := q.Chart.Points[0], q.Chart.Points[1]
+	if !first.Since.Equal(since) || !first.Until.Equal(since.Add(5*time.Minute)) || first.HitX != "50.0000" {
+		t.Errorf("got time range %v - %v, x=%s, want first five-minute bucket", first.Since, first.Until, first.HitX)
+	}
+	if first.Response != "Response: 20.0 ms (min 10.0 / max 30.0)" || first.Variation != "Variation: 20.0 ms" {
+		t.Errorf("got tooltip %q / %q, want mean=20, min=10, max=30, variation=20", first.Response, first.Variation)
+	}
+	if second.Response != "Response: unavailable" || second.Variation != "Variation: unavailable" || second.Label != "0 responses / 1 failed / 0 excluded" {
+		t.Errorf("got failure tooltip %+v, want failure without timeout latency", second)
 	}
 }

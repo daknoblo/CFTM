@@ -6,12 +6,11 @@ import (
 )
 
 templ TunnelQualityCard(q TunnelQuality) {
-	<section id="tunnel-quality" class="card mb-6" hx-get={ q.RefreshURL } hx-trigger="every 10s" hx-swap="outerHTML" aria-label="HTTP response time and stability">
+	<section id="tunnel-quality" class="card mb-6" hx-get={ q.RefreshURL } hx-include="this" hx-trigger="every 10s, change" hx-sync="this:replace" hx-swap="outerHTML" aria-label="HTTP response time and stability">
 		<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Response time &amp; stability · last 24 hours</h2>
 		<p data-quality-error role="alert" class="alert-error mb-4" hidden>Chart refresh failed. Displayed measurements may be outdated; reload the page to retry.</p>
 		<p class="mb-4 text-xs text-slate-400">
-			HTTP time to response headers from CFTM through Cloudflare, including application processing.
-			Not ICMP ping, network jitter or packet loss. Access and known cached responses are excluded.
+			HTTP response time, not network ping. Access and known cache responses excluded.
 		</p>
 		if !q.Enabled {
 			<p class="alert-warn mb-4">Probing is disabled. Set CFTM_PROBE_ENABLED=true to collect new samples. Any stored history is shown below.</p>
@@ -26,7 +25,9 @@ templ TunnelQualityCard(q TunnelQuality) {
 						<option value={ host } selected?={ host == q.Hostname }>{ host }</option>
 					}
 				</select>
-				<button type="submit" class="btn-ghost">Show</button>
+				<noscript>
+					<button type="submit" class="btn-ghost">Apply</button>
+				</noscript>
 				<span class="text-xs text-slate-500">Probe interval: { q.Interval }</span>
 			</form>
 			if q.Samples == 0 {
@@ -39,9 +40,17 @@ templ TunnelQualityCard(q TunnelQuality) {
 					@qualityMetric("Failed checks", q.FailurePercent, "%")
 				</div>
 				<div class="overflow-x-auto">
-					<svg viewBox="0 0 1000 255" class="w-full min-w-[600px]" role="img" aria-label={ "24-hour HTTP response time and variation for " + q.Hostname }>
+					<svg id="quality-chart" data-quality-chart viewBox="0 0 1000 255" class="w-full min-w-[600px] focus-visible:outline focus-visible:outline-1 focus-visible:outline-sky-400" role="img" tabindex="0" aria-describedby="quality-chart-help" aria-label={ "24-hour HTTP response time and variation for " + q.Hostname }>
 						<title>{ q.Hostname }: HTTP response time and variation</title>
 						<desc>Five-minute means with minimum and maximum response times. Red markers show failed checks; amber markers show excluded checks. Blank areas have no eligible measurements.</desc>
+						<g data-quality-grid class="stroke-slate-700" stroke-opacity="0.45" stroke-width="0.5" aria-hidden="true">
+							for i := range 25 {
+								<line x1={ fmt.Sprintf("%.1f", 50+float64(i)*37.5) } x2={ fmt.Sprintf("%.1f", 50+float64(i)*37.5) } y1="20" y2="190"></line>
+							}
+							for i := range 11 {
+								<line x1="50" x2="950" y1={ fmt.Sprintf("%d", 20+i*17) } y2={ fmt.Sprintf("%d", 20+i*17) }></line>
+							}
+						</g>
 						<path d="M50,20 H950 M50,105 H950 M50,190 H950" class="stroke-slate-700" fill="none"></path>
 						<text x="45" y="24" text-anchor="end" class="fill-slate-400 text-xs">{ fmt.Sprintf("%.0f", q.Chart.MaxMS) }</text>
 						<text x="45" y="109" text-anchor="end" class="fill-slate-400 text-xs">{ fmt.Sprintf("%.0f", q.Chart.MaxMS/2) }</text>
@@ -50,13 +59,12 @@ templ TunnelQualityCard(q TunnelQuality) {
 						<path d={ q.Chart.VariationPath } class="stroke-violet-400" stroke-width="2" stroke-dasharray="4 3" fill="none"></path>
 						for _, p := range q.Chart.Points {
 							<g>
-								<title>{ p.Label }</title>
 								if p.HasLatency {
 									<line x1={ p.X } x2={ p.X } y1={ p.LowY } y2={ p.HighY } class="stroke-sky-400" stroke-opacity="0.5"></line>
-									<circle cx={ p.X } cy={ p.Y } r="2" class="fill-sky-400"></circle>
+									<circle cx={ p.X } cy={ p.Y } r="1.25" class="fill-sky-400"></circle>
 								}
 								if p.HasVariation {
-									<circle cx={ p.X } cy={ p.VariationY } r="2" class="fill-violet-400"></circle>
+									<circle cx={ p.X } cy={ p.VariationY } r="1.25" class="fill-violet-400"></circle>
 								}
 								if p.Failures > 0 {
 									<circle cx={ p.X } cy="210" r="3" class="fill-rose-400"></circle>
@@ -71,32 +79,47 @@ templ TunnelQualityCard(q TunnelQuality) {
 						<text x="500" y="247" text-anchor="middle" class="fill-slate-400 text-xs">12h</text>
 						<text x="725" y="247" text-anchor="middle" class="fill-slate-400 text-xs">6h</text>
 						<text x="950" y="247" text-anchor="end" class="fill-slate-400 text-xs">Now</text>
+						for _, p := range q.Chart.Points {
+							<rect
+								data-quality-point
+								data-x={ p.X }
+								data-since={ FormatTime(p.Since) }
+								data-until={ FormatTime(p.Until) }
+								data-response={ p.Response }
+								data-variation={ p.Variation }
+								data-counts={ p.Label }
+								x={ p.HitX } y="20" width="3.125" height="208"
+								fill="transparent" class="cursor-crosshair"
+							></rect>
+						}
+						<line data-quality-guide hidden y1="20" y2="228" class="stroke-slate-400" stroke-dasharray="3 3" pointer-events="none"></line>
+						<g data-quality-tooltip hidden aria-hidden="true" pointer-events="none">
+							<rect width="380" height="96" rx="6" class="fill-slate-950 stroke-slate-600"></rect>
+							<text data-quality-time x="12" y="21" class="fill-slate-200 text-xs"></text>
+							<text data-quality-response x="12" y="43" class="fill-sky-400 text-xs"></text>
+							<text data-quality-variation x="12" y="63" class="fill-violet-400 text-xs"></text>
+							<text data-quality-counts x="12" y="83" class="fill-slate-400 text-xs"></text>
+						</g>
 					</svg>
 				</div>
+				<p id="quality-chart-help" class="sr-only">Hover to inspect five-minute buckets, or focus the chart and use the left and right arrow keys. Escape hides the values.</p>
+				<p data-quality-announcement class="sr-only" aria-live="polite"></p>
 				<div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
 					<span class="text-sky-400">Response mean / min–max</span>
-					<span class="text-violet-400">Response variation (dashed)</span>
+					<span class="text-violet-400">Variation</span>
 					<span class="text-rose-400">{ fmt.Sprintf("%d failed", q.Failures) }</span>
-					<span class="text-amber-400">{ fmt.Sprintf("%d excluded / unverified", q.Excluded) }</span>
+					<span class="text-amber-400">{ fmt.Sprintf("%d excluded", q.Excluded) }</span>
 					<span class="text-slate-400">{ fmt.Sprintf("%d eligible / %d total checks", q.Successful, q.Samples) }</span>
 				</div>
-				<p class="mt-3 text-xs text-slate-500">
-					Five-minute buckets; whiskers preserve spikes. Statistics use individual eligible samples.
-					Variation is the mean absolute difference between consecutive eligible checks, never across failures or gaps longer than 1.5 probe intervals.
-					Failed-check percentage excludes Access/cache checks and missing measurements.
-				</p>
 				<p class="mt-2 text-xs text-slate-500">
-					Last sample: @timestamp(FormatTime(q.LastSample), "never")
+					5-minute means · Gaps = missing checks · Last sample:
+					@timestamp(FormatTime(q.LastSample), "never")
 					if q.Stale {
 						<span class="badge badge-warn ml-2">Stale measurements</span>
 					}
 				</p>
 			}
 		}
-		<p class="mt-3 text-xs text-slate-500">
-			Measurements belong to the selected hostname, not a specific connector or physical link.
-			Older samples may include cache hits collected before cache detection was available.
-		</p>
 	</section>
 }
 
